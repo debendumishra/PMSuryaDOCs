@@ -1,0 +1,569 @@
+
+
+Develop a **production-ready Android application** using **Kotlin**  with **Jetpack Compose**, **Material 3**, **MVVM + Clean Architecture**, **Repository Pattern**, **Room Database**, **Hilt Dependency Injection**, and modern Android development best practices.
+
+The application is designed for **PM Surya Ghar document processing**. Its purpose is to automate document organization, PDF creation, AI-assisted verification using the **Gemini Android App (via Intent)**, report generation, ZIP creation, and WhatsApp sharing.
+
+**Important:** The application **must not use the Gemini API**. It must interact with the **installed Gemini Android application using Android Intents**.
+
+---
+
+# Core Workflow
+
+The application **does not continuously monitor WhatsApp**.
+
+The processing begins **only when the user presses the "Start Processing" button**.
+
+Overall flow:
+
+1. User receives documents in a predefined WhatsApp chat.
+2. User opens this application.
+3. User presses **Start Processing**.
+4. Application reads all newly received supported files from the configured WhatsApp source since the last successful processing.
+5. Application groups the documents.
+6. Converts every document into compressed PDF. except rooftop as jpg
+7. Launches Gemini using Android Intent with all PDFs, jpg 
+8. Gemini analyzes every document and returns the required information. as per prompt given by user
+9. User shares/copies Gemini response back into the application.
+10. Application extracts Customer Name and Mobile Number from the Gemini response.
+11. Application displays the proposed output folder location in settings
+12. User may edit the folder name/location if desired.
+13. Application creates the folder.
+14. Saves all PDFs.
+15. Generates Word report.
+16. Creates ZIP.
+17. Opens WhatsApp with ZIP attached for sending to the configured destination number.
+
+---
+
+# Home Screen
+
+Design a clean Material 3 interface.
+
+Show:
+
+* Start Processing button
+* Processing History
+* Last Processed Date & Time
+* Settings
+* About
+
+When processing starts:
+
+Display progress such as:
+
+* Reading WhatsApp Files
+* Organizing Documents
+* Creating PDFs
+* Compressing PDFs
+* Preparing Gemini Request
+* Waiting for Gemini Response
+* Reading Gemini Result
+* Preparing Customer Folder
+* Saving Files
+* Creating Report
+* Creating ZIP
+* Opening WhatsApp
+* Completed
+
+---
+
+# WhatsApp Processing
+
+The application **must NOT monitor WhatsApp continuously**.
+
+Only after Start button is pressed:
+
+Read files from configured WhatsApp source.
+
+Supported:
+
+* JPG
+* JPEG
+* PNG
+* PDF
+
+Only process files newer than last successful processing.
+
+Maintain processing history inside Room Database.
+
+---
+
+# Document Organization
+
+Automatically organize files into:
+
+* Aadhaar
+* PAN
+* Electricity Bill
+* Land Record
+* Passbook
+* Rooftop Photograph
+* House Photograph
+* Other Documents
+
+Multiple images belonging to one document must become one PDF.
+
+Example:
+
+Aadhaar Front
+
+*
+
+Aadhaar Back
+
+↓
+
+Aadhaar.pdf
+
+---
+
+# PDF Generation
+
+Every document becomes one PDF.
+
+Examples:
+
+Aadhaar.pdf
+
+PAN.pdf
+
+ElectricityBill.pdf
+
+LandRecord.pdf
+
+Passbook.pdf
+
+HousePhoto.pdf
+
+RooftopPhoto.pdf
+
+Compress PDFs larger than **2 MB** while maintaining readability.
+
+---
+
+# Gemini Integration
+
+**Do NOT use Gemini API.**
+
+Launch the installed Gemini application using Android Intent.
+
+Attach:
+
+* All PDFs
+* Generated Prompt
+
+Allow Gemini to perform work as per prompt given by user like 
+
+* OCR
+* Document classification
+* Data extraction
+* Verification
+* Report generation
+
+No local OCR library should be used.
+
+Do NOT integrate:
+
+* ML Kit
+* Tesseract
+* Google Vision OCR
+
+Gemini performs all document understanding.
+
+---
+
+# Gemini Prompt
+
+Automatically generate the following prompt:
+
+---
+
+**PM SURYA GHAR DOCUMENT VERIFICATION PROMPT**
+
+You are an expert document verification assistant for the PM Surya Ghar Scheme.
+
+Analyze every attached PDF carefully.
+
+Perform all OCR yourself.
+
+Do not assume anything.
+
+Read every document completely.
+
+Your tasks are:
+
+1. Identify every attached document.
+
+Possible document types include:
+
+* Aadhaar Card
+* PAN Card
+* Electricity Bill
+* Bank Passbook
+* Land Record
+* House Photograph
+* Rooftop Photograph
+* Property Tax Receipt
+* Income Certificate
+* Any other PM Surya Ghar document
+
+2. Extract information from every document.
+
+Extract wherever available:
+
+Customer Name
+
+Father/Husband Name
+
+Mobile Number
+
+Address
+
+PIN Code
+
+Village
+
+Post Office
+
+Police Station
+
+District
+
+State
+
+Aadhaar Number
+
+PAN Number
+
+Electricity Consumer Number
+
+Consumer ID
+
+Sanction Load
+
+Account Number
+
+IFSC Code
+
+Land Record Details
+
+Khata Number
+
+Plot Number
+
+Area
+
+Owner Name
+
+Bank Name
+
+Branch
+
+Application Number
+
+Connection Number
+
+Any other useful information
+
+3. Determine whether all documents belong to the same applicant.
+
+4. Report any mismatch including:
+
+Different names
+
+Different addresses
+
+Different mobile numbers
+
+Different Aadhaar numbers
+
+Different PAN numbers
+
+Missing pages
+
+Blurred scans
+
+Unreadable scans
+
+Duplicate documents
+
+Expired documents
+
+Missing mandatory documents
+
+5. Prepare a PM Surya Ghar Document Verification Report.
+
+6. At the very beginning of your response, provide the following fields in this exact format:
+
+Customer Name:
+Mobile Number:
+
+These values will be used by the Android application to automatically create the customer folder.
+
+7. After these two fields, generate a complete verification report in the language selected by the user (English or Odia).
+
+End of Prompt.
+
+---
+
+# Reading Gemini Response
+
+After the Gemini response is received:
+
+Automatically extract:
+
+Customer Name
+
+Mobile Number
+
+These values become the default folder name.
+
+Example:
+
+```
+Customer Name:
+RAMESH KUMAR
+
+Mobile Number:
+9876543210
+```
+
+---
+
+# Output Folder Screen
+
+Before creating the folder, display:
+
+**Detected Customer Name**
+
+RAMESH KUMAR
+
+**Detected Mobile Number**
+
+9876543210
+
+**Proposed Folder Name**
+
+RAMESH KUMAR_9876543210
+
+**Output Location**
+
+```
+Documents/
+PM_Surya_Ghar/
+RAMESH KUMAR_9876543210/
+```
+
+Show the complete path on screen.
+
+Provide:
+
+* Edit Folder Name
+* Change Output Location
+* Continue
+
+The user may:
+
+* Change customer name
+* Change mobile number
+* Rename folder
+* Select another destination folder
+
+The application remembers this base output location for future processing.
+
+---
+
+# Saving Files
+
+Inside the folder save:
+
+Aadhaar.pdf
+
+PAN.pdf
+
+ElectricityBill.pdf
+
+LandRecord.pdf
+
+Passbook.pdf
+
+HousePhoto.pdf
+
+RooftopPhoto.pdf
+
+Verification_Report.docx
+
+Verification_Report.pdf (optional)
+
+Gemini_Response.txt
+
+---
+
+# Word Report
+
+Generate:
+
+Verification_Report.docx
+
+using Apache POI.
+
+Include:
+
+Customer Name
+
+Mobile Number
+
+Processing Date
+
+Document List
+
+Extracted Details
+
+Verification Summary
+
+Missing Documents
+
+Observations
+
+Final Recommendation
+
+---
+
+# ZIP Creation
+
+Create:
+
+CustomerName_Mobile.zip
+
+Include:
+
+All PDFs
+
+Word Report
+
+PDF Report
+
+Gemini_Response.txt
+
+---
+
+# WhatsApp Sharing
+
+Open WhatsApp using Android Intent.
+
+Attach ZIP.
+
+Destination number comes from Settings.
+
+Default message:
+
+```
+PM Surya Ghar Application Documents
+
+Customer:
+<name>
+
+ZIP attached.
+```
+
+User presses Send.
+
+---
+
+# Processing History
+
+Maintain:
+
+Processing ID
+
+Customer Name
+
+Mobile Number
+
+Folder Path
+
+ZIP Path
+
+Processing Date
+
+Status
+
+Last Processing Timestamp
+
+---
+
+# Settings Screen
+
+Allow the user to configure:
+
+* Source WhatsApp contact or folder
+* Destination WhatsApp number
+* Default Gemini prompt
+* Default output folder location
+* Language (English/Odia)
+* Maximum PDF size (default 2 MB)
+* ZIP filename format
+* Whether to generate PDF report in addition to DOCX
+
+The selected output location should be remembered and used as the default in future runs. During processing, after the customer name and mobile number are identified from Gemini's response, display the complete proposed output path (e.g., `Documents/PM_Surya_Ghar/RAMESH KUMAR_9876543210/`) and allow the user to accept it or change the folder name and/or base location before files are saved.
+
+---
+
+# Libraries
+
+Use:
+
+* Kotlin
+* Jetpack Compose
+* MVVM
+* Clean Architecture
+* Repository Pattern
+* Room Database
+* Hilt
+* Material 3
+* Apache POI
+* OpenPDF or PDFBox
+* Zip4j
+* Timber
+* Coil
+* WorkManager (only after Start Processing is initiated)
+
+---
+
+# Code Quality Requirements
+
+* Modular architecture
+* SOLID principles
+* Proper error handling
+* Loading indicators
+* Resume interrupted processing
+* Android 11–16 compatibility
+* Scoped Storage support
+* Well-documented code with comments
+* Unit tests for business logic
+* Clean, maintainable, production-ready implementation
+
+---
+
+# Final Deliverables
+
+Generate a complete Android Studio project that includes:
+
+* Full Kotlin source code
+* MVVM + Clean Architecture
+* Jetpack Compose UI
+* Settings module
+* Document processing module
+* PDF generation and compression
+* Gemini Intent integration
+* DOCX report generation
+* ZIP creation
+* WhatsApp sharing
+* Room database
+* Processing history
+* README with setup instructions
+* Build configuration
+* APK generation instructions
+
+The application should require minimal user interaction beyond initiating the process, reviewing the proposed output folder, interacting with Gemini through its Android app, and confirming the final WhatsApp share, while providing a reliable, maintainable, and user-friendly workflow for PM Surya Ghar document processing.
