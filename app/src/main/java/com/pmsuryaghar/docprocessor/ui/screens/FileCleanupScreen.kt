@@ -24,6 +24,9 @@ import androidx.compose.ui.unit.sp
 import com.pmsuryaghar.docprocessor.data.util.FileUtils
 import com.pmsuryaghar.docprocessor.ui.viewmodel.MainViewModel
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -106,9 +109,13 @@ fun FileCleanupScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text("Storage & File Manager", fontWeight = FontWeight.Bold)
                         Text(
-                            text = if (currentSubfolder != null) "Subfolder: ${currentSubfolder?.first}"
+                            text = "Storage & File Manager",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 18.sp
+                        )
+                        Text(
+                            text = if (currentSubfolder != null) "Folder > ${currentSubfolder?.first}"
                                    else if (selectedTab == 0) "Source Folder"
                                    else if (selectedTab == 1) "Destination Folder"
                                    else "Custom WhatsApp Media Folder",
@@ -144,7 +151,9 @@ fun FileCleanupScreen(
             // 3 Folders Tab Header Row (Source, Destination, Custom WhatsApp Folder)
             if (currentSubfolder == null) {
                 TabRow(
-                    selectedTabIndex = selectedTab
+                    selectedTabIndex = selectedTab,
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                    contentColor = MaterialTheme.colorScheme.primary
                 ) {
                     Tab(
                         selected = selectedTab == 0,
@@ -152,7 +161,13 @@ fun FileCleanupScreen(
                             selectedTab = 0
                             currentSubfolder = null
                         },
-                        text = { Text("Source (${sourceFiles.size})", fontWeight = FontWeight.Bold, fontSize = 12.sp) }
+                        text = {
+                            Text(
+                                "Source (${sourceFiles.size})",
+                                fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Medium,
+                                fontSize = 13.sp
+                            )
+                        }
                     )
                     Tab(
                         selected = selectedTab == 1,
@@ -160,7 +175,13 @@ fun FileCleanupScreen(
                             selectedTab = 1
                             currentSubfolder = null
                         },
-                        text = { Text("Destination (${destFiles.size})", fontWeight = FontWeight.Bold, fontSize = 12.sp) }
+                        text = {
+                            Text(
+                                "Destination (${destFiles.size})",
+                                fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Medium,
+                                fontSize = 13.sp
+                            )
+                        }
                     )
                     Tab(
                         selected = selectedTab == 2,
@@ -168,7 +189,13 @@ fun FileCleanupScreen(
                             selectedTab = 2
                             currentSubfolder = null
                         },
-                        text = { Text("Custom WA (${whatsappMediaFiles.size})", fontWeight = FontWeight.Bold, fontSize = 12.sp) }
+                        text = {
+                            Text(
+                                "Custom WA (${whatsappMediaFiles.size})",
+                                fontWeight = if (selectedTab == 2) FontWeight.Bold else FontWeight.Medium,
+                                fontSize = 13.sp
+                            )
+                        }
                     )
                 }
             } else {
@@ -196,9 +223,9 @@ fun FileCleanupScreen(
                             fontSize = 13.sp,
                             modifier = Modifier.weight(1f)
                         )
-                        TextButton(
+                        OutlinedButton(
                             onClick = { currentSubfolder = null },
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp)
                         ) {
                             Icon(Icons.Default.ArrowUpward, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(4.dp))
@@ -208,18 +235,19 @@ fun FileCleanupScreen(
                 }
             }
 
-            // Refresh Custom Folder Header Card inside Tab 2
+            // Refresh Custom Folder Control Card inside Tab 2
             if (currentSubfolder == null && selectedTab == 2) {
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 12.dp, vertical = 8.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)),
-                    shape = RoundedCornerShape(10.dp)
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFF0FDF4)),
+                    border = BorderStroke(1.dp, Color(0xFF86EFAC)),
+                    shape = RoundedCornerShape(12.dp)
                 ) {
                     Column(
-                        modifier = Modifier.padding(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                        modifier = Modifier.padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -227,42 +255,64 @@ fun FileCleanupScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Default.Chat,
-                                    contentDescription = null,
-                                    tint = Color(0xFF16A34A),
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = "Custom WhatsApp Media Folder",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 13.sp
-                                )
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = Color(0xFFDCFCE7),
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = Icons.Default.Chat,
+                                            contentDescription = null,
+                                            tint = Color(0xFF16A34A),
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column {
+                                    Text(
+                                        text = "Custom WhatsApp Folder",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp,
+                                        color = Color(0xFF14532D)
+                                    )
+                                    Text(
+                                        text = "Syncs today's & yesterday's WhatsApp media",
+                                        fontSize = 11.sp,
+                                        color = Color(0xFF166534).copy(alpha = 0.8f)
+                                    )
+                                }
                             }
+                            
                             Button(
                                 onClick = { viewModel.refreshCustomWhatsappFolder(context) },
                                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF16A34A)),
-                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                                shape = RoundedCornerShape(8.dp),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
                             ) {
                                 Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("Refresh Folder", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                Text("Refresh", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             }
                         }
-                        Text(
-                            text = "Clears all files in custom folder & imports today's + yesterday's WhatsApp Docs and Images.",
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+
                         if (syncStatus.isNotEmpty()) {
-                            Text(
-                                text = syncStatus,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold,
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
                                 color = if (syncStatus.contains("failed", ignoreCase = true) || syncStatus.contains("not set", ignoreCase = true))
-                                    Color(0xFFDC2626) else Color(0xFF15803D)
-                            )
+                                    Color(0xFFFEE2E2) else Color(0xFFDCFCE7),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    text = syncStatus,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = if (syncStatus.contains("failed", ignoreCase = true) || syncStatus.contains("not set", ignoreCase = true))
+                                        Color(0xFF991B1B) else Color(0xFF166534),
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
+                            }
                         }
                     }
                 }
@@ -279,23 +329,25 @@ fun FileCleanupScreen(
                         Icon(
                             imageVector = Icons.Default.FolderOff,
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                            modifier = Modifier.size(48.dp)
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                            modifier = Modifier.size(56.dp)
                         )
                         Spacer(modifier = Modifier.height(12.dp))
                         Text(
-                            "No files found in this directory.",
+                            "No files found in this folder.",
                             style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             if (currentSubfolder != null) "Subfolder is empty."
-                            else if (selectedTab == 0) "Source folder is empty or not configured."
+                            else if (selectedTab == 0) "Source folder is empty or not configured in Settings."
                             else if (selectedTab == 1) "No output files or customer directories created yet."
-                            else "Custom WhatsApp folder is empty.\nTap 'Refresh Folder' above to fetch today's & yesterday's WhatsApp files.",
+                            else "Custom WhatsApp folder is empty.\nTap 'Refresh' above to fetch today's & yesterday's WhatsApp files.",
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                            modifier = Modifier.padding(horizontal = 24.dp)
                         )
                     }
                 }
@@ -304,49 +356,56 @@ fun FileCleanupScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .weight(1f)
-                        .padding(12.dp)
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
                 ) {
                     // Select All Row
                     val allSelected = rawCurrentFiles.isNotEmpty() && rawCurrentFiles.all { selectedUris[it.second] == true }
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
-                            .padding(horizontal = 12.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text(
-                            "Select All Items (${rawCurrentFiles.size})",
-                            fontWeight = FontWeight.SemiBold,
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                        Checkbox(
-                            checked = allSelected,
-                            onCheckedChange = { isChecked ->
-                                rawCurrentFiles.forEach { selectedUris[it.second] = isChecked }
-                            }
-                        )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "Select All (${rawCurrentFiles.size} items)",
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Checkbox(
+                                checked = allSelected,
+                                onCheckedChange = { isChecked ->
+                                    rawCurrentFiles.forEach { selectedUris[it.second] = isChecked }
+                                }
+                            )
+                        }
                     }
                     
                     // Subfolder loading indicator
                     if (isLoadingSubfolder) {
+                        Spacer(modifier = Modifier.height(4.dp))
                         LinearProgressIndicator(
                             modifier = Modifier.fillMaxWidth().height(2.dp),
                             color = MaterialTheme.colorScheme.primary
                         )
                     }
-
-
                     
                     // File count badge
                     if (totalCurrentCount > MAX_DISPLAY) {
                         Text(
-                            "Showing $MAX_DISPLAY of $totalCurrentCount items (most recent first)",
+                            "Showing $MAX_DISPLAY of $totalCurrentCount items (sorted newest first)",
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
                         )
+                    } else {
+                        Spacer(modifier = Modifier.height(6.dp))
                     }
 
                     // Lazy List of Files/Folders
@@ -354,25 +413,28 @@ fun FileCleanupScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         items(rawCurrentFiles, key = { it.second.toString() }) { (name, uri, isDirectory) ->
                             var showItemMenu by remember { mutableStateOf(false) }
 
                             Card(
+                                shape = RoundedCornerShape(10.dp),
                                 colors = CardDefaults.cardColors(
-                                    containerColor = if (isDirectory) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.35f) 
+                                    containerColor = if (isDirectory) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.25f) 
                                                       else MaterialTheme.colorScheme.surface
                                 ),
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+                                border = BorderStroke(
+                                    width = 1.dp,
+                                    color = if (selectedUris[uri] == true) MaterialTheme.colorScheme.primary 
+                                            else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                                ),
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clickable {
                                         if (isDirectory) {
-                                            // Open subfolder — LaunchedEffect(currentSubfolder) will load contents async
                                             currentSubfolder = Pair(name, uri)
                                         } else {
-                                            // Open file via view intent
                                             try {
                                                 val type = context.contentResolver.getType(uri) ?: "*/*"
                                                 val intent = Intent(Intent.ACTION_VIEW).apply {
@@ -397,35 +459,57 @@ fun FileCleanupScreen(
                                         }
                                     )
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Icon(
-                                        imageVector = if (isDirectory) Icons.Default.Folder 
-                                                       else if (name.endsWith(".pdf", true)) Icons.Default.PictureAsPdf
-                                                       else if (name.endsWith(".jpg", true) || name.endsWith(".png", true) || name.endsWith(".jpeg", true)) Icons.Default.Image
-                                                       else Icons.Default.Description,
-                                        contentDescription = if (isDirectory) "Folder" else "File",
-                                        tint = if (isDirectory) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(24.dp)
-                                    )
+                                    
+                                    // Colored File/Folder Icon
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = if (isDirectory) Color(0xFFFEF3C7)
+                                                else if (name.endsWith(".pdf", true)) Color(0xFFFEE2E2)
+                                                else if (name.endsWith(".jpg", true) || name.endsWith(".png", true) || name.endsWith(".jpeg", true)) Color(0xFFDCFCE7)
+                                                else MaterialTheme.colorScheme.surfaceVariant,
+                                        modifier = Modifier.size(38.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                imageVector = if (isDirectory) Icons.Default.Folder 
+                                                               else if (name.endsWith(".pdf", true)) Icons.Default.PictureAsPdf
+                                                               else if (name.endsWith(".jpg", true) || name.endsWith(".png", true) || name.endsWith(".jpeg", true)) Icons.Default.Image
+                                                               else Icons.Default.Description,
+                                                contentDescription = null,
+                                                tint = if (isDirectory) Color(0xFFD97706)
+                                                       else if (name.endsWith(".pdf", true)) Color(0xFFDC2626)
+                                                       else if (name.endsWith(".jpg", true) || name.endsWith(".png", true) || name.endsWith(".jpeg", true)) Color(0xFF16A34A)
+                                                       else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+                                    }
+                                    
                                     Spacer(modifier = Modifier.width(10.dp))
+                                    
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(
                                             text = name,
                                             style = MaterialTheme.typography.bodyMedium,
-                                            fontWeight = if (isDirectory) FontWeight.Bold else FontWeight.Medium,
+                                            fontWeight = if (isDirectory) FontWeight.Bold else FontWeight.SemiBold,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis
                                         )
+                                        Spacer(modifier = Modifier.height(2.dp))
                                         Text(
-                                            text = if (isDirectory) "Folder • Tap to open" else "File • Tap to view",
+                                            text = if (isDirectory) "Directory • Tap to open" else "File • Tap to view",
                                             fontSize = 11.sp,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
 
-                                    // Item Overflow Menu (File operations)
+                                    // Item Overflow Options Menu
                                     Box {
-                                        IconButton(onClick = { showItemMenu = true }) {
-                                            Icon(Icons.Default.MoreVert, contentDescription = "Options")
+                                        IconButton(
+                                            onClick = { showItemMenu = true },
+                                            modifier = Modifier.size(32.dp)
+                                        ) {
+                                            Icon(Icons.Default.MoreVert, contentDescription = "Options", modifier = Modifier.size(18.dp))
                                         }
                                         DropdownMenu(
                                             expanded = showItemMenu,
@@ -438,7 +522,6 @@ fun FileCleanupScreen(
                                                     showItemMenu = false
                                                     if (isDirectory) {
                                                         currentSubfolder = Pair(name, uri)
-                                                        activeSubfolderFiles = viewModel.loadFolderContents(context, uri)
                                                     } else {
                                                         try {
                                                             val intent = Intent(Intent.ACTION_VIEW).apply {
@@ -451,7 +534,7 @@ fun FileCleanupScreen(
                                                 }
                                             )
                                             DropdownMenuItem(
-                                                text = { Text("Send to Source Folder") },
+                                                text = { Text("Send to Source") },
                                                 leadingIcon = { Icon(Icons.Default.Input, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
                                                 onClick = {
                                                     showItemMenu = false
@@ -493,43 +576,59 @@ fun FileCleanupScreen(
                         }
                     }
                     
-                    Spacer(modifier = Modifier.height(10.dp))
-                    
-                    // Selected Items File Operations Toolbar (Structured Responsive Layout - Requirement 4)
+                    // Selected Items File Operations Toolbar — Cleanly Aligned 2x2 Grid
                     val checkedUris = selectedUris.filter { it.value }.keys.toList()
                     val selectedCount = checkedUris.size
                     
                     if (selectedCount > 0) {
+                        Spacer(modifier = Modifier.height(8.dp))
                         Card(
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+                            shape = RoundedCornerShape(12.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Column(
-                                modifier = Modifier.padding(10.dp),
+                                modifier = Modifier.padding(12.dp),
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                // Selection Info Header
+                                // Selection Header
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text(
-                                        text = "$selectedCount item(s) selected",
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 13.sp,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Surface(
+                                            shape = RoundedCornerShape(50),
+                                            color = MaterialTheme.colorScheme.primaryContainer,
+                                            modifier = Modifier.padding(end = 6.dp)
+                                        ) {
+                                            Text(
+                                                text = "$selectedCount",
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 11.sp,
+                                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                        Text(
+                                            text = "item(s) selected",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
                                     TextButton(
                                         onClick = { selectedUris.clear() },
                                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
                                     ) {
-                                        Text("Deselect All", fontSize = 12.sp)
+                                        Text("Deselect All", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                     }
                                 }
 
-                                // Row 1: Send to Source Folder & Share
+                                // Action Buttons Row 1: Send to Source & Share
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -539,11 +638,14 @@ fun FileCleanupScreen(
                                             viewModel.sendFilesToSourceFolder(context, checkedUris)
                                             refreshCurrentView()
                                         },
-                                        modifier = Modifier.weight(1f),
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(40.dp),
                                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary),
-                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp)
+                                        shape = RoundedCornerShape(8.dp),
+                                        contentPadding = PaddingValues(horizontal = 8.dp)
                                     ) {
-                                        Icon(Icons.Default.Input, contentDescription = null, modifier = Modifier.size(18.dp))
+                                        Icon(Icons.Default.Input, contentDescription = null, modifier = Modifier.size(16.dp))
                                         Spacer(modifier = Modifier.width(6.dp))
                                         Text("To Source", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                     }
@@ -552,17 +654,20 @@ fun FileCleanupScreen(
                                         onClick = {
                                             FileUtils.shareFiles(context, checkedUris, "Share $selectedCount File(s)")
                                         },
-                                        modifier = Modifier.weight(1f),
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(40.dp),
                                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp)
+                                        shape = RoundedCornerShape(8.dp),
+                                        contentPadding = PaddingValues(horizontal = 8.dp)
                                     ) {
-                                        Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(18.dp))
+                                        Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp))
                                         Spacer(modifier = Modifier.width(6.dp))
                                         Text("Share", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                     }
                                 }
 
-                                // Row 2: Rename (if 1 item selected) & Delete
+                                // Action Buttons Row 2: Rename (if single item) & Delete
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -576,10 +681,13 @@ fun FileCleanupScreen(
                                                 renameText = targetName
                                                 showRenameDialog = true
                                             },
-                                            modifier = Modifier.weight(1f),
-                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp)
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .height(40.dp),
+                                            shape = RoundedCornerShape(8.dp),
+                                            contentPadding = PaddingValues(horizontal = 8.dp)
                                         ) {
-                                            Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(18.dp))
+                                            Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
                                             Spacer(modifier = Modifier.width(6.dp))
                                             Text("Rename", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                         }
@@ -590,11 +698,14 @@ fun FileCleanupScreen(
                                             viewModel.deleteCleanupFiles(context, checkedUris, selectedTab != 1)
                                             refreshCurrentView()
                                         },
-                                        modifier = Modifier.weight(1f),
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(40.dp),
                                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp)
+                                        shape = RoundedCornerShape(8.dp),
+                                        contentPadding = PaddingValues(horizontal = 8.dp)
                                     ) {
-                                        Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
+                                        Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(16.dp))
                                         Spacer(modifier = Modifier.width(6.dp))
                                         Text("Delete", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                     }

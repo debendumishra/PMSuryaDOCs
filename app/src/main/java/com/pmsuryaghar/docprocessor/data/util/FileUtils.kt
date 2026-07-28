@@ -65,28 +65,24 @@ object FileUtils {
         val list = mutableListOf<SourceFile>()
         try {
             val extDir = android.os.Environment.getExternalStorageDirectory()
-            val primaryFolder = if (isDocumentFolder) {
-                File(extDir, "Android/media/com.whatsapp/WhatsApp/Media/WhatsApp Documents")
-            } else {
-                File(extDir, "Android/media/com.whatsapp/WhatsApp/Media/WhatsApp Images")
-            }
+            val subFolder = if (isDocumentFolder) "WhatsApp Documents" else "WhatsApp Images"
 
-            val legacyFolder = if (isDocumentFolder) {
-                File(extDir, "WhatsApp/Media/WhatsApp Documents")
-            } else {
-                File(extDir, "WhatsApp/Media/WhatsApp Images")
-            }
+            val candidateFolders = listOf(
+                File(extDir, "Android/media/com.whatsapp/WhatsApp/Media/$subFolder"),
+                File(extDir, "Android/media/com.whatsapp/Media/$subFolder"),
+                File(extDir, "Android/Media/com.whatsapp/Media/$subFolder"),
+                File(extDir, "Android/Media/com.whatsapp/WhatsApp/Media/$subFolder"),
+                File(extDir, "WhatsApp/Media/$subFolder")
+            )
 
-            val targetDir = when {
-                primaryFolder.exists() && primaryFolder.isDirectory -> primaryFolder
-                legacyFolder.exists() && legacyFolder.isDirectory -> legacyFolder
-                else -> null
-            }
+            val existingDirs = candidateFolders.filter { it.exists() && it.isDirectory }
 
-            if (targetDir != null) {
-                targetDir.listFiles()?.forEach { file ->
+            for (dir in existingDirs) {
+                dir.listFiles()?.forEach { file ->
                     if (file.isFile && !file.name.startsWith(".")) {
-                        list.add(SourceFile(file.name, Uri.fromFile(file), file.lastModified()))
+                        if (list.none { it.name == file.name }) {
+                            list.add(SourceFile(file.name, Uri.fromFile(file), file.lastModified()))
+                        }
                     }
                 }
             }
