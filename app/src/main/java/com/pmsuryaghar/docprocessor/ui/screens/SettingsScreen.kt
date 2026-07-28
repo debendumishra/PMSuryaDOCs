@@ -387,6 +387,18 @@ fun SettingsScreen(
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true
                     )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    OutlinedTextField(
+                        value = settings.landRecordPortalUrl,
+                        onValueChange = { viewModel.updateSettings(settings.copy(landRecordPortalUrl = it)) },
+                        label = { Text("Land Record Web Portal URL") },
+                        placeholder = { Text("https://bhulekh.ori.nic.in/") },
+                        helperText = { Text("URL launched when tapping the Land Record link on the Dashboard (default: Odisha Bhulekh)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
                 }
             }
 

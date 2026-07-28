@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.pmsuryaghar.docprocessor.data.util.FileUtils
 import com.pmsuryaghar.docprocessor.ui.viewmodel.MainViewModel
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -31,16 +32,19 @@ fun FileCleanupScreen(
     onBackClick: () -> Unit
 ) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     var selectedTab by remember { mutableIntStateOf(0) }
     
     val sourceFiles by viewModel.cleanupSourceFiles.collectAsState()
     val destFiles by viewModel.cleanupDestFiles.collectAsState()
     val whatsappDocsFiles by viewModel.cleanupWhatsappDocsFiles.collectAsState()
     val whatsappImagesFiles by viewModel.cleanupWhatsappImagesFiles.collectAsState()
+    val syncStatus by viewModel.syncStatus.collectAsState()
     
     // Active navigation stack for subfolders: Pair(Name, Uri)
     var currentSubfolder by remember { mutableStateOf<Pair<String, Uri>?>(null) }
     var activeSubfolderFiles by remember { mutableStateOf<List<Triple<String, Uri, Boolean>>>(emptyList()) }
+    var isLoadingSubfolder by remember { mutableStateOf(false) }
     
     val selectedUris = remember { mutableStateMapOf<Uri, Boolean>() }
     
@@ -53,7 +57,11 @@ fun FileCleanupScreen(
         viewModel.loadCleanupFiles(context)
         val activeFolder = currentSubfolder
         if (activeFolder != null) {
-            activeSubfolderFiles = viewModel.loadFolderContents(context, activeFolder.second)
+            coroutineScope.launch {
+                isLoadingSubfolder = true
+                activeSubfolderFiles = viewModel.loadFolderContents(context, activeFolder.second)
+                isLoadingSubfolder = false
+            }
         }
     }
     
@@ -62,13 +70,34 @@ fun FileCleanupScreen(
         viewModel.loadCleanupFiles(context)
     }
     
+    // Async subfolder loading when currentSubfolder changes
+    LaunchedEffect(currentSubfolder) {
+        val folder = currentSubfolder
+        if (folder != null) {
+            isLoadingSubfolder = true
+            activeSubfolderFiles = viewModel.loadFolderContents(context, folder.second)
+            isLoadingSubfolder = false
+        } else {
+            activeSubfolderFiles = emptyList()
+        }
+    }
+    
     // Determine current files list based on selected tab and subfolder state
+    // Cap at 100 items for performance — WA folders can have thousands of files
+    val MAX_DISPLAY = 100
     val rawCurrentFiles = when {
-        currentSubfolder != null -> activeSubfolderFiles
+        currentSubfolder != null -> activeSubfolderFiles.take(MAX_DISPLAY)
         selectedTab == 0 -> sourceFiles
         selectedTab == 1 -> destFiles
-        selectedTab == 2 -> whatsappDocsFiles
-        else -> whatsappImagesFiles
+        selectedTab == 2 -> whatsappDocsFiles.take(MAX_DISPLAY)
+        else -> whatsappImagesFiles.take(MAX_DISPLAY)
+    }
+    val totalCurrentCount = when {
+        currentSubfolder != null -> activeSubfolderFiles.size
+        selectedTab == 0 -> sourceFiles.size
+        selectedTab == 1 -> destFiles.size
+        selectedTab == 2 -> whatsappDocsFiles.size
+        else -> whatsappImagesFiles.size
     }
     
     LaunchedEffect(rawCurrentFiles, selectedTab, currentSubfolder) {
@@ -255,8 +284,57 @@ fun FileCleanupScreen(
                         )
                     }
                     
-                    Spacer(modifier = Modifier.height(8.dp))
+                    // Subfolder loading indicator
+                    if (isLoadingSubfolder) {
+                        LinearProgressIndicator(
+                            modifier = Modifier.fillMaxWidth().height(2.dp),
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+
+                    // Sync button for WA tabs (tab 2 and 3)
+                    if (currentSubfolder == null && (selectedTab == 2 || selectedTab == 3)) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Button(
+                                onClick = { viewModel.syncWhatsappFiles(context, selectedTab == 2) },
+                                modifier = Modifier.wrapContentWidth(),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFF16A34A)
+                                )
+                            ) {
+                                Icon(Icons.Default.Sync, null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Sync from WhatsApp", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                            if (syncStatus.isNotEmpty()) {
+                                Text(
+                                    text = syncStatus,
+                                    fontSize = 11.sp,
+                                    color = if (syncStatus.contains("fail", ignoreCase = true))
+                                        Color(0xFFDC2626) else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+                    }
                     
+                    // File count badge
+                    if (totalCurrentCount > MAX_DISPLAY) {
+                        Text(
+                            "Showing $MAX_DISPLAY of $totalCurrentCount items (most recent first)",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                        )
+                    }
+
                     // Lazy List of Files/Folders
                     LazyColumn(
                         modifier = Modifier
@@ -264,7 +342,7 @@ fun FileCleanupScreen(
                             .weight(1f),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        items(rawCurrentFiles) { (name, uri, isDirectory) ->
+                        items(rawCurrentFiles, key = { it.second.toString() }) { (name, uri, isDirectory) ->
                             var showItemMenu by remember { mutableStateOf(false) }
 
                             Card(
@@ -277,9 +355,8 @@ fun FileCleanupScreen(
                                     .fillMaxWidth()
                                     .clickable {
                                         if (isDirectory) {
-                                            // Open subfolder / destination directory on click
+                                            // Open subfolder — LaunchedEffect(currentSubfolder) will load contents async
                                             currentSubfolder = Pair(name, uri)
-                                            activeSubfolderFiles = viewModel.loadFolderContents(context, uri)
                                         } else {
                                             // Open file via view intent
                                             try {

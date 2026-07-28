@@ -7,14 +7,16 @@ import androidx.lifecycle.viewModelScope
 import com.pmsuryaghar.docprocessor.data.util.GeminiResponseExtractor
 import com.pmsuryaghar.docprocessor.data.util.PdfHelper
 import com.pmsuryaghar.docprocessor.data.util.IntentManager
+import com.pmsuryaghar.docprocessor.data.util.FileUtils
 import com.pmsuryaghar.docprocessor.domain.model.*
 import com.pmsuryaghar.docprocessor.domain.repository.ProcessingRepository
 import com.pmsuryaghar.docprocessor.domain.repository.SettingsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import timber.log.Timber
-import com.pmsuryaghar.docprocessor.data.util.FileUtils
 import java.io.File
 import javax.inject.Inject
 
@@ -105,6 +107,12 @@ class MainViewModel @Inject constructor(
     private val _isBatchProcessed = MutableStateFlow(false)
     val isBatchProcessed: StateFlow<Boolean> = _isBatchProcessed.asStateFlow()
 
+    private val _negativeRemarks = MutableStateFlow<List<String>>(emptyList())
+    val negativeRemarks: StateFlow<List<String>> = _negativeRemarks.asStateFlow()
+
+    private val _missingDocuments = MutableStateFlow<List<String>>(emptyList())
+    val missingDocuments: StateFlow<List<String>> = _missingDocuments.asStateFlow()
+
     fun startProcessing(context: Context) {
         viewModelScope.launch {
             try {
@@ -188,6 +196,10 @@ class MainViewModel @Inject constructor(
             _detectedName.value = extracted.customerName.ifEmpty { "UNKNOWN_CUSTOMER" }
             _detectedMobile.value = extracted.mobileNumber.ifEmpty { "0000000000" }
             _proposedFolderName.value = "${_detectedName.value}_${_detectedMobile.value}"
+            
+            // Populate negative remarks and missing documents for dashboard display
+            _negativeRemarks.value = extracted.negativeRemarks
+            _missingDocuments.value = extracted.missingDocuments
             
             _processingState.value = ProcessingState.FOLDER_REVIEW
             _statusText.value = "Review proposed customer output folder"
@@ -410,6 +422,8 @@ class MainViewModel @Inject constructor(
         _detectedMobile.value = ""
         _rawGeminiResponse.value = ""
         _proposedFolderName.value = ""
+        _negativeRemarks.value = emptyList()
+        _missingDocuments.value = emptyList()
     }
     fun refreshExistingFiles(context: Context) {
         val baseUriStr = _selectedOutputLocationUri.value
@@ -633,7 +647,76 @@ class MainViewModel @Inject constructor(
         }
     }
 
+    private val _syncStatus = MutableStateFlow("")
+    val syncStatus: StateFlow<String> = _syncStatus.asStateFlow()
+
+    /**
+     * Copies today's and yesterday's files from the actual WhatsApp app folders into the
+     * configured WA Documents and WA Images folders. This gives users access to recent
+     * WhatsApp-received files from within the app.
+     */
+    fun syncWhatsappFiles(context: Context, isDocumentFolder: Boolean) {
+        viewModelScope.launch {
+            val currentSettings = try {
+                settingsRepository.getSettings().first()
+            } catch (e: Exception) {
+                _syncStatus.value = "Failed to read settings"
+                return@launch
+            }
+
+            val targetUriStr = if (isDocumentFolder) currentSettings.whatsappDocsFolderUri
+                               else currentSettings.whatsappImagesFolderUri
+            if (targetUriStr.isEmpty()) {
+                _syncStatus.value = "Configure ${if (isDocumentFolder) "WA Documents" else "WA Images"} folder in Settings first"
+                return@launch
+            }
+
+            _syncStatus.value = "Syncing recent WhatsApp files..."
+            try {
+                val twoDaysAgoMs = System.currentTimeMillis() - (2L * 24L * 60L * 60L * 1000L)
+                val waFiles = withContext(Dispatchers.IO) {
+                    FileUtils.scanActualWhatsappFolder(context, isDocumentFolder)
+                        .filter { it.lastModified >= twoDaysAgoMs }
+                }
+
+                if (waFiles.isEmpty()) {
+                    _syncStatus.value = "No recent files found in WhatsApp folder (last 2 days)"
+                    loadCleanupFiles(context)
+                    return@launch
+                }
+
+                val targetUri = Uri.parse(targetUriStr)
+                var copied = 0
+                var skipped = 0
+
+                withContext(Dispatchers.IO) {
+                    val targetDoc = androidx.documentfile.provider.DocumentFile.fromTreeUri(context, targetUri)
+                    for (waFile in waFiles) {
+                        try {
+                            // Skip if file already exists in target folder
+                            if (targetDoc?.findFile(waFile.name) != null) {
+                                skipped++
+                                continue
+                            }
+                            val result = FileUtils.copySharedUriToSourceFolder(context, waFile.uri, targetUri)
+                            if (result != null) copied++
+                        } catch (e: Exception) {
+                            Timber.e(e, "Error copying WA file: ${waFile.name}")
+                        }
+                    }
+                }
+
+                _syncStatus.value = "Sync done: $copied copied, $skipped already present"
+                loadCleanupFiles(context)
+            } catch (e: Exception) {
+                Timber.e(e, "Error during WA sync")
+                _syncStatus.value = "Sync failed: ${e.localizedMessage}"
+            }
+        }
+    }
+
     fun clearHistory() {
+
         viewModelScope.launch {
             try {
                 processingRepository.clearAllHistory()

@@ -49,6 +49,8 @@ fun HomeScreen(
     val sourceCount by viewModel.sourceFolderFileCount.collectAsState()
     val appSettings by viewModel.settings.collectAsState()
     val isBatchProcessed by viewModel.isBatchProcessed.collectAsState()
+    val negativeRemarks by viewModel.negativeRemarks.collectAsState()
+    val missingDocuments by viewModel.missingDocuments.collectAsState()
     val scrollState = rememberScrollState()
     var showAboutDialog by remember { mutableStateOf(false) }
 
@@ -358,7 +360,7 @@ fun HomeScreen(
                 }
             }
 
-            // Quick Utility Portals Section (Requirement 2: Aadhaar Card & TPCODL Bill Links)
+            // Quick Utility Portals Section — 3 portals: Aadhaar, TPCODL Bill, Land Record
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -383,7 +385,7 @@ fun HomeScreen(
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     // Portal 1: Aadhaar Card Download (UIDAI Tathya Portal)
                     Card(
@@ -393,51 +395,36 @@ fun HomeScreen(
                             context.startActivity(intent)
                         },
                         modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(14.dp),
+                        shape = RoundedCornerShape(12.dp),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                         border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f))
                     ) {
                         Column(
-                            modifier = Modifier.padding(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                            modifier = Modifier.padding(10.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                                horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Surface(
-                                    shape = RoundedCornerShape(8.dp),
+                                    shape = RoundedCornerShape(6.dp),
                                     color = MaterialTheme.colorScheme.primaryContainer,
-                                    modifier = Modifier.size(34.dp)
+                                    modifier = Modifier.size(28.dp)
                                 ) {
                                     Box(contentAlignment = Alignment.Center) {
-                                        Icon(
-                                            imageVector = Icons.Default.Badge,
-                                            contentDescription = null,
+                                        Icon(Icons.Default.Badge, null,
                                             tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                            modifier = Modifier.size(18.dp)
-                                        )
+                                            modifier = Modifier.size(16.dp))
                                     }
                                 }
-                                Icon(
-                                    imageVector = Icons.Default.OpenInNew,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(16.dp)
-                                )
+                                Icon(Icons.Default.OpenInNew, null,
+                                    tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(13.dp))
                             }
-                            Text(
-                                text = "Aadhaar Card",
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = "UIDAI Resident Portal",
-                                fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            Text("Aadhaar", fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface, maxLines = 1)
+                            Text("UIDAI Portal", fontSize = 9.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
                         }
                     }
 
@@ -449,51 +436,77 @@ fun HomeScreen(
                             context.startActivity(intent)
                         },
                         modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(14.dp),
+                        shape = RoundedCornerShape(12.dp),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                         border = BorderStroke(1.dp, MaterialTheme.colorScheme.secondary.copy(alpha = 0.35f))
                     ) {
                         Column(
-                            modifier = Modifier.padding(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                            modifier = Modifier.padding(10.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                                horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Surface(
-                                    shape = RoundedCornerShape(8.dp),
+                                    shape = RoundedCornerShape(6.dp),
                                     color = MaterialTheme.colorScheme.secondaryContainer,
-                                    modifier = Modifier.size(34.dp)
+                                    modifier = Modifier.size(28.dp)
                                 ) {
                                     Box(contentAlignment = Alignment.Center) {
-                                        Icon(
-                                            imageVector = Icons.Default.ElectricBolt,
-                                            contentDescription = null,
+                                        Icon(Icons.Default.ElectricBolt, null,
                                             tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                                            modifier = Modifier.size(18.dp)
-                                        )
+                                            modifier = Modifier.size(16.dp))
                                     }
                                 }
-                                Icon(
-                                    imageVector = Icons.Default.OpenInNew,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.secondary,
-                                    modifier = Modifier.size(16.dp)
-                                )
+                                Icon(Icons.Default.OpenInNew, null,
+                                    tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(13.dp))
                             }
-                            Text(
-                                text = "TPCODL Bill",
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = "Tata Power Portal",
-                                fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            Text("TPCODL Bill", fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface, maxLines = 1)
+                            Text("Tata Power", fontSize = 9.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                        }
+                    }
+
+                    // Portal 3: Land Record Download (Odisha Bhulekh)
+                    Card(
+                        onClick = {
+                            val targetUrl = appSettings.landRecordPortalUrl.ifEmpty { "https://bhulekh.ori.nic.in/" }
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(targetUrl))
+                            context.startActivity(intent)
+                        },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        border = BorderStroke(1.dp, Color(0xFF16A34A).copy(alpha = 0.35f))
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(10.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = Color(0xFFDCFCE7),
+                                    modifier = Modifier.size(28.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(Icons.Default.Landscape, null,
+                                            tint = Color(0xFF16A34A),
+                                            modifier = Modifier.size(16.dp))
+                                    }
+                                }
+                                Icon(Icons.Default.OpenInNew, null,
+                                    tint = Color(0xFF16A34A), modifier = Modifier.size(13.dp))
+                            }
+                            Text("Land Record", fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface, maxLines = 1)
+                            Text("Bhulekh Portal", fontSize = 9.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
                         }
                     }
                 }
@@ -696,30 +709,57 @@ fun HomeScreen(
                 }
             }
 
-            // Cloud Atmospheric Footer Indicator
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-            ) {
-                Row(
-                    modifier = Modifier.padding(14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center
+            // --- Negative Remarks & Missing Documents Card (shown in RED after processing) ---
+            if ((negativeRemarks.isNotEmpty() || missingDocuments.isNotEmpty()) && isBatchProcessed) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF0F0)),
+                    border = BorderStroke(1.5.dp, Color(0xFFEF4444).copy(alpha = 0.6f))
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.CloudDone,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Text(
-                        text = "All systems clear. Cloud & Gemini AI verification active.",
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center
-                    )
+                    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Icon(Icons.Default.Warning, null,
+                                tint = Color(0xFFDC2626), modifier = Modifier.size(20.dp))
+                            Text("Issues Detected", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold,
+                                color = Color(0xFFDC2626))
+                        }
+
+                        if (missingDocuments.isNotEmpty()) {
+                            Text("Missing Documents:", fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                                color = Color(0xFFB91C1C))
+                            missingDocuments.forEach { doc ->
+                                Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Text("•", fontSize = 12.sp, color = Color(0xFFDC2626),
+                                        modifier = Modifier.padding(top = 1.dp))
+                                    Text(doc, fontSize = 12.sp, color = Color(0xFFB91C1C),
+                                        modifier = Modifier.weight(1f))
+                                }
+                            }
+                        }
+
+                        if (negativeRemarks.isNotEmpty()) {
+                            if (missingDocuments.isNotEmpty()) {
+                                Divider(color = Color(0xFFEF4444).copy(alpha = 0.3f))
+                            }
+                            Text("Remarks & Issues:", fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                                color = Color(0xFFB91C1C))
+                            negativeRemarks.take(5).forEach { remark ->
+                                Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Text("⚠", fontSize = 11.sp, color = Color(0xFFDC2626),
+                                        modifier = Modifier.padding(top = 1.dp))
+                                    Text(remark, fontSize = 11.sp, color = Color(0xFFB91C1C),
+                                        modifier = Modifier.weight(1f), maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis)
+                                }
+                            }
+                            if (negativeRemarks.size > 5) {
+                                Text("... and ${negativeRemarks.size - 5} more issues in the full report",
+                                    fontSize = 10.sp, color = Color(0xFF991B1B),
+                                    fontWeight = FontWeight.Medium)
+                            }
+                        }
+                    }
                 }
             }
         }

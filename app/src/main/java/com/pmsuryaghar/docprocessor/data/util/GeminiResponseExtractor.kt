@@ -9,7 +9,9 @@ object GeminiResponseExtractor {
         val customerName: String,
         val mobileNumber: String,
         val documentMapping: Map<Int, String>,
-        val details: Map<String, String>
+        val details: Map<String, String>,
+        val negativeRemarks: List<String> = emptyList(),
+        val missingDocuments: List<String> = emptyList()
     )
 
     fun extract(text: String): ExtractedInfo {
@@ -17,9 +19,12 @@ object GeminiResponseExtractor {
         var mobileNumber = ""
         val documentMapping = mutableMapOf<Int, String>()
         val details = mutableMapOf<String, String>()
+        val negativeRemarks = mutableListOf<String>()
+        val missingDocuments = mutableListOf<String>()
 
         val lines = text.lines()
         var parsingMapping = false
+        var parsingMissingSection = false
 
         for (i in lines.indices) {
             val rawLine = lines[i]
@@ -171,13 +176,59 @@ object GeminiResponseExtractor {
                     details[key] = value
                 }
             }
+
+            // 6. Detect negative remarks and missing document lines
+            val isNegativeLine = lowerLine.contains("missing") ||
+                lowerLine.contains("not found") ||
+                lowerLine.contains("not available") ||
+                lowerLine.contains("mismatch") ||
+                lowerLine.contains("discrepancy") ||
+                lowerLine.contains("unclear") ||
+                lowerLine.contains("unreadable") ||
+                lowerLine.contains("blurry") ||
+                lowerLine.contains("illegible") ||
+                lowerLine.contains("expired") ||
+                lowerLine.contains("invalid") ||
+                lowerLine.contains("does not match") ||
+                lowerLine.contains("name mismatch") ||
+                lowerLine.contains("address mismatch") ||
+                lowerLine.contains("❌") ||
+                lowerLine.contains("✗") ||
+                lowerLine.contains("[missing]") ||
+                lowerLine.contains("not provided")
+
+            val isMissingDocLine = lowerLine.contains("missing document") ||
+                lowerLine.contains("document not found") ||
+                lowerLine.contains("document missing") ||
+                lowerLine.contains("required document") ||
+                (lowerLine.contains("missing") && (
+                    lowerLine.contains("aadhaar") || lowerLine.contains("pan") ||
+                    lowerLine.contains("electricity") || lowerLine.contains("passbook") ||
+                    lowerLine.contains("land") || lowerLine.contains("photo") ||
+                    lowerLine.contains("signature") || lowerLine.contains("certificate")
+                ))
+
+            if (cleanLine.length > 10) {
+                if (isMissingDocLine) {
+                    missingDocuments.add(cleanLine.trimStart('-', '*', '•', ' '))
+                } else if (isNegativeLine) {
+                    negativeRemarks.add(cleanLine.trimStart('-', '*', '•', ' '))
+                }
+            }
         }
 
         // Clean up any remaining markdown characters
         customerName = cleanMarkdown(customerName)
         mobileNumber = cleanMarkdown(mobileNumber)
 
-        return ExtractedInfo(customerName, mobileNumber, documentMapping, details)
+        return ExtractedInfo(
+            customerName = customerName,
+            mobileNumber = mobileNumber,
+            documentMapping = documentMapping,
+            details = details,
+            negativeRemarks = negativeRemarks.distinct().take(20),
+            missingDocuments = missingDocuments.distinct().take(10)
+        )
     }
 
     private fun cleanMarkdown(value: String): String {
