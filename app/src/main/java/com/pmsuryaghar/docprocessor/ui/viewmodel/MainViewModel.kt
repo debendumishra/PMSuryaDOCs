@@ -480,11 +480,8 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    private val _cleanupWhatsappDocsFiles = MutableStateFlow<List<Triple<String, Uri, Boolean>>>(emptyList())
-    val cleanupWhatsappDocsFiles: StateFlow<List<Triple<String, Uri, Boolean>>> = _cleanupWhatsappDocsFiles.asStateFlow()
-
-    private val _cleanupWhatsappImagesFiles = MutableStateFlow<List<Triple<String, Uri, Boolean>>>(emptyList())
-    val cleanupWhatsappImagesFiles: StateFlow<List<Triple<String, Uri, Boolean>>> = _cleanupWhatsappImagesFiles.asStateFlow()
+    private val _cleanupWhatsappMediaFiles = MutableStateFlow<List<Triple<String, Uri, Boolean>>>(emptyList())
+    val cleanupWhatsappMediaFiles: StateFlow<List<Triple<String, Uri, Boolean>>> = _cleanupWhatsappMediaFiles.asStateFlow()
 
     private val _cleanupSourceFiles = MutableStateFlow<List<Triple<String, Uri, Boolean>>>(emptyList())
     val cleanupSourceFiles: StateFlow<List<Triple<String, Uri, Boolean>>> = _cleanupSourceFiles.asStateFlow()
@@ -513,6 +510,7 @@ class MainViewModel @Inject constructor(
                     if (rootDoc != null && rootDoc.isDirectory) {
                         _cleanupSourceFiles.value = rootDoc.listFiles()
                             .filter { it.name != null }
+                            .sortedByDescending { it.lastModified() }
                             .map { Triple(it.name!!, it.uri, it.isDirectory) }
                     } else {
                         _cleanupSourceFiles.value = emptyList()
@@ -535,6 +533,7 @@ class MainViewModel @Inject constructor(
                     if (rootDoc != null && rootDoc.isDirectory) {
                         _cleanupDestFiles.value = rootDoc.listFiles()
                             .filter { it.name != null }
+                            .sortedByDescending { it.lastModified() }
                             .map { Triple(it.name!!, it.uri, it.isDirectory) }
                     } else {
                         _cleanupDestFiles.value = emptyList()
@@ -547,54 +546,31 @@ class MainViewModel @Inject constructor(
                 _cleanupDestFiles.value = emptyList()
             }
 
-            // 3. WhatsApp Documents Folder - show ONLY today's + yesterday's files
-            val configuredDocsUriStr = currentSettings.whatsappDocsFolderUri
-            if (configuredDocsUriStr.isNotEmpty()) {
+            // 3. Custom WhatsApp Media Folder - show files sorted datetime descending
+            val configuredMediaUriStr = currentSettings.whatsappMediaFolderUri
+            if (configuredMediaUriStr.isNotEmpty()) {
                 try {
-                    val rootDoc = androidx.documentfile.provider.DocumentFile.fromTreeUri(context, Uri.parse(configuredDocsUriStr))
+                    val rootDoc = androidx.documentfile.provider.DocumentFile.fromTreeUri(context, Uri.parse(configuredMediaUriStr))
                     if (rootDoc != null && rootDoc.isDirectory) {
-                        _cleanupWhatsappDocsFiles.value = rootDoc.listFiles()
-                            .filter { it.name != null && !it.isDirectory && it.lastModified() >= twoDaysAgoMs }
+                        _cleanupWhatsappMediaFiles.value = rootDoc.listFiles()
+                            .filter { it.name != null }
                             .sortedByDescending { it.lastModified() }
-                            .map { Triple(it.name!!, it.uri, false) }
+                            .map { Triple(it.name!!, it.uri, it.isDirectory) }
                     } else {
-                        _cleanupWhatsappDocsFiles.value = emptyList()
+                        _cleanupWhatsappMediaFiles.value = emptyList()
                     }
                 } catch (e: Exception) {
-                    Timber.e(e, "Error reading configured WA Docs folder")
-                    _cleanupWhatsappDocsFiles.value = emptyList()
+                    Timber.e(e, "Error reading configured WA Media folder")
+                    _cleanupWhatsappMediaFiles.value = emptyList()
                 }
             } else {
-                // Fallback: scan actual system WhatsApp Documents path, filter last 2 days
+                // Fallback: scan actual system WhatsApp Documents + Images paths, filter last 2 days, sort descending
                 val actualDocs = FileUtils.scanActualWhatsappFolder(context, isDocumentFolder = true)
-                _cleanupWhatsappDocsFiles.value = actualDocs
-                    .filter { it.lastModified >= twoDaysAgoMs }
-                    .map { Triple(it.name, it.uri, false) }
-            }
-
-            // 4. WhatsApp Images Folder - show ONLY today's + yesterday's files
-            val configuredImagesUriStr = currentSettings.whatsappImagesFolderUri
-            if (configuredImagesUriStr.isNotEmpty()) {
-                try {
-                    val rootDoc = androidx.documentfile.provider.DocumentFile.fromTreeUri(context, Uri.parse(configuredImagesUriStr))
-                    if (rootDoc != null && rootDoc.isDirectory) {
-                        _cleanupWhatsappImagesFiles.value = rootDoc.listFiles()
-                            .filter { it.name != null && !it.isDirectory && it.lastModified() >= twoDaysAgoMs }
-                            .sortedByDescending { it.lastModified() }
-                            .map { Triple(it.name!!, it.uri, false) }
-                    } else {
-                        _cleanupWhatsappImagesFiles.value = emptyList()
-                    }
-                } catch (e: Exception) {
-                    Timber.e(e, "Error reading configured WA Images folder")
-                    _cleanupWhatsappImagesFiles.value = emptyList()
-                }
-            } else {
-                // Fallback: scan actual system WhatsApp Images path, filter last 2 days
                 val actualImages = FileUtils.scanActualWhatsappFolder(context, isDocumentFolder = false)
-                _cleanupWhatsappImagesFiles.value = actualImages
+                val combined = (actualDocs + actualImages)
                     .filter { it.lastModified >= twoDaysAgoMs }
-                    .map { Triple(it.name, it.uri, false) }
+                    .sortedByDescending { it.lastModified }
+                _cleanupWhatsappMediaFiles.value = combined.map { Triple(it.name, it.uri, false) }
             }
         }
     }
@@ -651,11 +627,10 @@ class MainViewModel @Inject constructor(
     val syncStatus: StateFlow<String> = _syncStatus.asStateFlow()
 
     /**
-     * Copies today's and yesterday's files from the actual WhatsApp app folders into the
-     * configured WA Documents and WA Images folders. This gives users access to recent
-     * WhatsApp-received files from within the app.
+     * Clears all files in the custom WhatsApp Media folder, then fetches today's and yesterday's
+     * files from the actual WhatsApp Documents and WhatsApp Images folders into it.
      */
-    fun syncWhatsappFiles(context: Context, isDocumentFolder: Boolean) {
+    fun refreshCustomWhatsappFolder(context: Context) {
         viewModelScope.launch {
             val currentSettings = try {
                 settingsRepository.getSettings().first()
@@ -664,54 +639,54 @@ class MainViewModel @Inject constructor(
                 return@launch
             }
 
-            val targetUriStr = if (isDocumentFolder) currentSettings.whatsappDocsFolderUri
-                               else currentSettings.whatsappImagesFolderUri
+            val targetUriStr = currentSettings.whatsappMediaFolderUri
             if (targetUriStr.isEmpty()) {
-                _syncStatus.value = "Configure ${if (isDocumentFolder) "WA Documents" else "WA Images"} folder in Settings first"
+                _syncStatus.value = "Configure Custom WhatsApp Media folder in Settings first!"
                 return@launch
             }
 
-            _syncStatus.value = "Syncing recent WhatsApp files..."
-            try {
-                val twoDaysAgoMs = System.currentTimeMillis() - (2L * 24L * 60L * 60L * 1000L)
-                val waFiles = withContext(Dispatchers.IO) {
-                    FileUtils.scanActualWhatsappFolder(context, isDocumentFolder)
-                        .filter { it.lastModified >= twoDaysAgoMs }
-                }
+            _syncStatus.value = "Clearing existing files in Custom Folder..."
+            val targetUri = Uri.parse(targetUriStr)
+            var copied = 0
 
-                if (waFiles.isEmpty()) {
-                    _syncStatus.value = "No recent files found in WhatsApp folder (last 2 days)"
-                    loadCleanupFiles(context)
-                    return@launch
-                }
-
-                val targetUri = Uri.parse(targetUriStr)
-                var copied = 0
-                var skipped = 0
-
-                withContext(Dispatchers.IO) {
+            withContext(Dispatchers.IO) {
+                try {
                     val targetDoc = androidx.documentfile.provider.DocumentFile.fromTreeUri(context, targetUri)
-                    for (waFile in waFiles) {
-                        try {
-                            // Skip if file already exists in target folder
-                            if (targetDoc?.findFile(waFile.name) != null) {
-                                skipped++
-                                continue
+                    if (targetDoc != null && targetDoc.isDirectory) {
+                        // 1. Remove all existing files in custom folder
+                        targetDoc.listFiles().forEach { file ->
+                            try {
+                                file.delete()
+                            } catch (e: Exception) {
+                                Timber.e(e, "Error deleting file ${file.name} during refresh")
                             }
-                            val result = FileUtils.copySharedUriToSourceFolder(context, waFile.uri, targetUri)
-                            if (result != null) copied++
-                        } catch (e: Exception) {
-                            Timber.e(e, "Error copying WA file: ${waFile.name}")
+                        }
+
+                        // 2. Fetch today's and yesterday's files from actual WhatsApp Docs & Images
+                        val twoDaysAgoMs = System.currentTimeMillis() - (2L * 24L * 60L * 60L * 1000L)
+                        val actualDocs = FileUtils.scanActualWhatsappFolder(context, isDocumentFolder = true)
+                        val actualImages = FileUtils.scanActualWhatsappFolder(context, isDocumentFolder = false)
+
+                        val recentWaFiles = (actualDocs + actualImages)
+                            .filter { it.lastModified >= twoDaysAgoMs }
+                            .sortedByDescending { it.lastModified }
+
+                        for (waFile in recentWaFiles) {
+                            try {
+                                val result = FileUtils.copySharedUriToSourceFolder(context, waFile.uri, targetUri)
+                                if (result != null) copied++
+                            } catch (e: Exception) {
+                                Timber.e(e, "Error copying WA file: ${waFile.name}")
+                            }
                         }
                     }
+                } catch (e: Exception) {
+                    Timber.e(e, "Error during custom folder refresh")
                 }
-
-                _syncStatus.value = "Sync done: $copied copied, $skipped already present"
-                loadCleanupFiles(context)
-            } catch (e: Exception) {
-                Timber.e(e, "Error during WA sync")
-                _syncStatus.value = "Sync failed: ${e.localizedMessage}"
             }
+
+            _syncStatus.value = "Refresh complete! Cleared folder & imported $copied file(s)."
+            loadCleanupFiles(context)
         }
     }
 

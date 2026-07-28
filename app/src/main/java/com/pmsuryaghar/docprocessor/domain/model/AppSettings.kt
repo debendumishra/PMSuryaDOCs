@@ -14,8 +14,7 @@ data class AppSettings(
     val aadhaarPortalUrl: String = "https://tathya.uidai.gov.in/access/login?role=resident",
     val electricityPortalUrl: String = "https://mytatapowerplus.tatapower.com/#/offerings",
     val landRecordPortalUrl: String = "https://bhulekh.ori.nic.in/",
-    val whatsappDocsFolderUri: String = "",
-    val whatsappImagesFolderUri: String = ""
+    val whatsappMediaFolderUri: String = ""
 ) {
     companion object {
         const val DEFAULT_PROMPT = """**PM SURYA GHAR DOCUMENT VERIFICATION PROMPT**

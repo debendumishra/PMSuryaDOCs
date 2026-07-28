@@ -122,9 +122,6 @@ object PdfHelper {
                 systemNameToPages.getOrPut(systemName) { mutableListOf() }.add(page)
             }
 
-            // Handle duplicate "Other" by appending index
-            val otherCount = systemNameToPages.keys.count { it == "Other" }
-
             // Step 2: For each systemName, create the output file(s)
             for ((systemName, pages) in systemNameToPages) {
                 val sortedPages = pages.sorted()

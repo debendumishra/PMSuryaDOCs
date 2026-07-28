@@ -24,7 +24,6 @@ object GeminiResponseExtractor {
 
         val lines = text.lines()
         var parsingMapping = false
-        var parsingMissingSection = false
 
         for (i in lines.indices) {
             val rawLine = lines[i]

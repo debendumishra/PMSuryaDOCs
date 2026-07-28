@@ -54,7 +54,7 @@ fun SettingsScreen(
         }
     }
 
-    val waDocsLauncher = rememberLauncherForActivityResult(
+    val waMediaLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree()
     ) { uri ->
         if (uri != null) {
@@ -62,19 +62,7 @@ fun SettingsScreen(
                 uri,
                 Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
             )
-            viewModel.updateSettings(settings.copy(whatsappDocsFolderUri = uri.toString()))
-        }
-    }
-
-    val waImagesLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocumentTree()
-    ) { uri ->
-        if (uri != null) {
-            context.contentResolver.takePersistableUriPermission(
-                uri,
-                Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-            )
-            viewModel.updateSettings(settings.copy(whatsappImagesFolderUri = uri.toString()))
+            viewModel.updateSettings(settings.copy(whatsappMediaFolderUri = uri.toString()))
         }
     }
 
@@ -137,40 +125,19 @@ fun SettingsScreen(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // WhatsApp Documents Folder Config
-                    Text("WhatsApp Documents Folder:", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                    // Custom WhatsApp Media Folder Config
+                    Text("Custom WhatsApp Media Folder:", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = if (settings.whatsappDocsFolderUri.isEmpty()) "System Default (Android/media/com.whatsapp...)" else Uri.parse(settings.whatsappDocsFolderUri).path ?: "Selected Directory",
+                            text = if (settings.whatsappMediaFolderUri.isEmpty()) "Not Configured (Tap Select to set folder)" else Uri.parse(settings.whatsappMediaFolderUri).path ?: "Selected Directory",
                             modifier = Modifier.weight(1f),
                             style = MaterialTheme.typography.bodySmall,
                             maxLines = 2
                         )
-                        Button(onClick = { waDocsLauncher.launch(null) }) {
-                            Icon(Icons.Default.Folder, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Select")
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    // WhatsApp Images Folder Config
-                    Text("WhatsApp Images Folder:", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = if (settings.whatsappImagesFolderUri.isEmpty()) "System Default (Android/media/com.whatsapp...)" else Uri.parse(settings.whatsappImagesFolderUri).path ?: "Selected Directory",
-                            modifier = Modifier.weight(1f),
-                            style = MaterialTheme.typography.bodySmall,
-                            maxLines = 2
-                        )
-                        Button(onClick = { waImagesLauncher.launch(null) }) {
+                        Button(onClick = { waMediaLauncher.launch(null) }) {
                             Icon(Icons.Default.Folder, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(4.dp))
                             Text("Select")

@@ -37,8 +37,7 @@ fun FileCleanupScreen(
     
     val sourceFiles by viewModel.cleanupSourceFiles.collectAsState()
     val destFiles by viewModel.cleanupDestFiles.collectAsState()
-    val whatsappDocsFiles by viewModel.cleanupWhatsappDocsFiles.collectAsState()
-    val whatsappImagesFiles by viewModel.cleanupWhatsappImagesFiles.collectAsState()
+    val whatsappMediaFiles by viewModel.cleanupWhatsappMediaFiles.collectAsState()
     val syncStatus by viewModel.syncStatus.collectAsState()
     
     // Active navigation stack for subfolders: Pair(Name, Uri)
@@ -82,22 +81,19 @@ fun FileCleanupScreen(
         }
     }
     
-    // Determine current files list based on selected tab and subfolder state
-    // Cap at 100 items for performance — WA folders can have thousands of files
+    // Determine current files list based on selected tab and subfolder state (3 tabs)
     val MAX_DISPLAY = 100
     val rawCurrentFiles = when {
         currentSubfolder != null -> activeSubfolderFiles.take(MAX_DISPLAY)
         selectedTab == 0 -> sourceFiles
         selectedTab == 1 -> destFiles
-        selectedTab == 2 -> whatsappDocsFiles.take(MAX_DISPLAY)
-        else -> whatsappImagesFiles.take(MAX_DISPLAY)
+        else -> whatsappMediaFiles.take(MAX_DISPLAY)
     }
     val totalCurrentCount = when {
         currentSubfolder != null -> activeSubfolderFiles.size
         selectedTab == 0 -> sourceFiles.size
         selectedTab == 1 -> destFiles.size
-        selectedTab == 2 -> whatsappDocsFiles.size
-        else -> whatsappImagesFiles.size
+        else -> whatsappMediaFiles.size
     }
     
     LaunchedEffect(rawCurrentFiles, selectedTab, currentSubfolder) {
@@ -115,8 +111,7 @@ fun FileCleanupScreen(
                             text = if (currentSubfolder != null) "Subfolder: ${currentSubfolder?.first}"
                                    else if (selectedTab == 0) "Source Folder"
                                    else if (selectedTab == 1) "Destination Folder"
-                                   else if (selectedTab == 2) "WhatsApp Documents"
-                                   else "WhatsApp Images",
+                                   else "Custom WhatsApp Media Folder",
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
                         )
@@ -146,11 +141,10 @@ fun FileCleanupScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // 4 Folders Tab Header Row (Source, Destination, WhatsApp Documents, WhatsApp Images)
+            // 3 Folders Tab Header Row (Source, Destination, Custom WhatsApp Folder)
             if (currentSubfolder == null) {
-                ScrollableTabRow(
-                    selectedTabIndex = selectedTab,
-                    edgePadding = 12.dp
+                TabRow(
+                    selectedTabIndex = selectedTab
                 ) {
                     Tab(
                         selected = selectedTab == 0,
@@ -174,15 +168,7 @@ fun FileCleanupScreen(
                             selectedTab = 2
                             currentSubfolder = null
                         },
-                        text = { Text("WA Docs (${whatsappDocsFiles.size})", fontWeight = FontWeight.Bold, fontSize = 12.sp) }
-                    )
-                    Tab(
-                        selected = selectedTab == 3,
-                        onClick = {
-                            selectedTab = 3
-                            currentSubfolder = null
-                        },
-                        text = { Text("WA Images (${whatsappImagesFiles.size})", fontWeight = FontWeight.Bold, fontSize = 12.sp) }
+                        text = { Text("Custom WA (${whatsappMediaFiles.size})", fontWeight = FontWeight.Bold, fontSize = 12.sp) }
                     )
                 }
             } else {
@@ -221,6 +207,66 @@ fun FileCleanupScreen(
                     }
                 }
             }
+
+            // Refresh Custom Folder Header Card inside Tab 2
+            if (currentSubfolder == null && selectedTab == 2) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.Chat,
+                                    contentDescription = null,
+                                    tint = Color(0xFF16A34A),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Custom WhatsApp Media Folder",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp
+                                )
+                            }
+                            Button(
+                                onClick = { viewModel.refreshCustomWhatsappFolder(context) },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF16A34A)),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                            ) {
+                                Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Refresh Folder", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                        Text(
+                            text = "Clears all files in custom folder & imports today's + yesterday's WhatsApp Docs and Images.",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        if (syncStatus.isNotEmpty()) {
+                            Text(
+                                text = syncStatus,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (syncStatus.contains("failed", ignoreCase = true) || syncStatus.contains("not set", ignoreCase = true))
+                                    Color(0xFFDC2626) else Color(0xFF15803D)
+                            )
+                        }
+                    }
+                }
+            }
             
             if (rawCurrentFiles.isEmpty()) {
                 Box(
@@ -247,8 +293,7 @@ fun FileCleanupScreen(
                             if (currentSubfolder != null) "Subfolder is empty."
                             else if (selectedTab == 0) "Source folder is empty or not configured."
                             else if (selectedTab == 1) "No output files or customer directories created yet."
-                            else if (selectedTab == 2) "No WhatsApp document files received in the last 2 days.\nConfigure WA Documents folder in Settings."
-                            else "No WhatsApp image files received in the last 2 days.\nConfigure WA Images folder in Settings.",
+                            else "Custom WhatsApp folder is empty.\nTap 'Refresh Folder' above to fetch today's & yesterday's WhatsApp files.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
                         )
@@ -292,38 +337,7 @@ fun FileCleanupScreen(
                         )
                     }
 
-                    // Sync button for WA tabs (tab 2 and 3)
-                    if (currentSubfolder == null && (selectedTab == 2 || selectedTab == 3)) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 12.dp, vertical = 4.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Button(
-                                onClick = { viewModel.syncWhatsappFiles(context, selectedTab == 2) },
-                                modifier = Modifier.wrapContentWidth(),
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = Color(0xFF16A34A)
-                                )
-                            ) {
-                                Icon(Icons.Default.Sync, null, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("Sync from WhatsApp", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                            }
-                            if (syncStatus.isNotEmpty()) {
-                                Text(
-                                    text = syncStatus,
-                                    fontSize = 11.sp,
-                                    color = if (syncStatus.contains("fail", ignoreCase = true))
-                                        Color(0xFFDC2626) else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-                        }
-                    }
+
                     
                     // File count badge
                     if (totalCurrentCount > MAX_DISPLAY) {

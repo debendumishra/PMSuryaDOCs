@@ -33,8 +33,7 @@ class SettingsRepositoryImpl @Inject constructor(
         val AADHAAR_PORTAL_URL = stringPreferencesKey("aadhaar_portal_url")
         val ELECTRICITY_PORTAL_URL = stringPreferencesKey("electricity_portal_url")
         val LAND_RECORD_PORTAL_URL = stringPreferencesKey("land_record_portal_url")
-        val WHATSAPP_DOCS_FOLDER_URI = stringPreferencesKey("whatsapp_docs_folder_uri")
-        val WHATSAPP_IMAGES_FOLDER_URI = stringPreferencesKey("whatsapp_images_folder_uri")
+        val WHATSAPP_MEDIA_FOLDER_URI = stringPreferencesKey("whatsapp_media_folder_uri")
     }
 
     override fun getSettings(): Flow<AppSettings> {
@@ -53,8 +52,7 @@ class SettingsRepositoryImpl @Inject constructor(
                 aadhaarPortalUrl = preferences[PreferencesKeys.AADHAAR_PORTAL_URL] ?: "https://tathya.uidai.gov.in/access/login?role=resident",
                 electricityPortalUrl = preferences[PreferencesKeys.ELECTRICITY_PORTAL_URL] ?: "https://mytatapowerplus.tatapower.com/#/offerings",
                 landRecordPortalUrl = preferences[PreferencesKeys.LAND_RECORD_PORTAL_URL] ?: "https://bhulekh.ori.nic.in/",
-                whatsappDocsFolderUri = preferences[PreferencesKeys.WHATSAPP_DOCS_FOLDER_URI] ?: "",
-                whatsappImagesFolderUri = preferences[PreferencesKeys.WHATSAPP_IMAGES_FOLDER_URI] ?: ""
+                whatsappMediaFolderUri = preferences[PreferencesKeys.WHATSAPP_MEDIA_FOLDER_URI] ?: ""
             )
         }
     }
@@ -74,8 +72,7 @@ class SettingsRepositoryImpl @Inject constructor(
             preferences[PreferencesKeys.AADHAAR_PORTAL_URL] = settings.aadhaarPortalUrl
             preferences[PreferencesKeys.ELECTRICITY_PORTAL_URL] = settings.electricityPortalUrl
             preferences[PreferencesKeys.LAND_RECORD_PORTAL_URL] = settings.landRecordPortalUrl
-            preferences[PreferencesKeys.WHATSAPP_DOCS_FOLDER_URI] = settings.whatsappDocsFolderUri
-            preferences[PreferencesKeys.WHATSAPP_IMAGES_FOLDER_URI] = settings.whatsappImagesFolderUri
+            preferences[PreferencesKeys.WHATSAPP_MEDIA_FOLDER_URI] = settings.whatsappMediaFolderUri
         }
     }
 
