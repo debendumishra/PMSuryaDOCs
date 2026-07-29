@@ -3,7 +3,6 @@ package com.pmsuryaghar.docprocessor.ui.screens
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -24,9 +23,6 @@ import androidx.compose.ui.unit.sp
 import com.pmsuryaghar.docprocessor.data.util.FileUtils
 import com.pmsuryaghar.docprocessor.ui.viewmodel.MainViewModel
 import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -84,7 +80,7 @@ fun FileCleanupScreen(
         }
     }
     
-    // Determine current files list based on selected tab and subfolder state (3 tabs)
+    // Determine current files list based on selected tab and subfolder state (3 tabs: Inbox, Outbox, WA)
     val MAX_DISPLAY = 100
     val rawCurrentFiles = when {
         currentSubfolder != null -> activeSubfolderFiles.take(MAX_DISPLAY)
@@ -112,13 +108,13 @@ fun FileCleanupScreen(
                         Text(
                             text = "Storage & File Manager",
                             fontWeight = FontWeight.Bold,
-                            fontSize = 18.sp
+                            fontSize = 17.sp
                         )
                         Text(
                             text = if (currentSubfolder != null) "Folder > ${currentSubfolder?.first}"
-                                   else if (selectedTab == 0) "Source Folder"
-                                   else if (selectedTab == 1) "Destination Folder"
-                                   else "Custom WhatsApp Media Folder",
+                                   else if (selectedTab == 0) "Inbox (Source)"
+                                   else if (selectedTab == 1) "Outbox (Destination)"
+                                   else "WhatsApp Media (WA)",
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
                         )
@@ -135,6 +131,20 @@ fun FileCleanupScreen(
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                     }
                 },
+                actions = {
+                    // Small compact Refresh button in TopAppBar for WA tab
+                    if (selectedTab == 2 && currentSubfolder == null) {
+                        IconButton(
+                            onClick = { viewModel.refreshCustomWhatsappFolder(context) }
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = "Refresh WA Folder",
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primaryContainer,
                     titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -148,13 +158,14 @@ fun FileCleanupScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // 3 Folders Tab Header Row (Source, Destination, Custom WhatsApp Folder)
+            // 3 Tabs Header: Inbox (Source), Outbox (Destination), WA with compact refresh icon
             if (currentSubfolder == null) {
                 TabRow(
                     selectedTabIndex = selectedTab,
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
                     contentColor = MaterialTheme.colorScheme.primary
                 ) {
+                    // Tab 0: Inbox
                     Tab(
                         selected = selectedTab == 0,
                         onClick = {
@@ -163,12 +174,14 @@ fun FileCleanupScreen(
                         },
                         text = {
                             Text(
-                                "Source (${sourceFiles.size})",
+                                text = "Inbox (${sourceFiles.size})",
                                 fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Medium,
                                 fontSize = 13.sp
                             )
                         }
                     )
+
+                    // Tab 1: Outbox
                     Tab(
                         selected = selectedTab == 1,
                         onClick = {
@@ -177,12 +190,14 @@ fun FileCleanupScreen(
                         },
                         text = {
                             Text(
-                                "Destination (${destFiles.size})",
+                                text = "Outbox (${destFiles.size})",
                                 fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Medium,
                                 fontSize = 13.sp
                             )
                         }
                     )
+
+                    // Tab 2: WA with small Refresh Icon
                     Tab(
                         selected = selectedTab == 2,
                         onClick = {
@@ -190,11 +205,25 @@ fun FileCleanupScreen(
                             currentSubfolder = null
                         },
                         text = {
-                            Text(
-                                "Custom WA (${whatsappMediaFiles.size})",
-                                fontWeight = if (selectedTab == 2) FontWeight.Bold else FontWeight.Medium,
-                                fontSize = 13.sp
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                Text(
+                                    text = "WA (${whatsappMediaFiles.size})",
+                                    fontWeight = if (selectedTab == 2) FontWeight.Bold else FontWeight.Medium,
+                                    fontSize = 13.sp
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Icon(
+                                    imageVector = Icons.Default.Refresh,
+                                    contentDescription = "Sync",
+                                    modifier = Modifier
+                                        .size(15.dp)
+                                        .clickable { viewModel.refreshCustomWhatsappFolder(context) },
+                                    tint = if (selectedTab == 2) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
                     )
                 }
@@ -207,114 +236,56 @@ fun FileCleanupScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                            .padding(horizontal = 14.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
                             imageVector = Icons.Default.FolderOpen,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(18.dp)
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
                         Text(
                             text = "Root > ${currentSubfolder?.first}",
                             fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp,
+                            fontSize = 12.sp,
                             modifier = Modifier.weight(1f)
                         )
                         OutlinedButton(
                             onClick = { currentSubfolder = null },
-                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp)
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
                         ) {
-                            Icon(Icons.Default.ArrowUpward, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Icon(Icons.Default.ArrowUpward, contentDescription = null, modifier = Modifier.size(14.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("Up Directory", fontSize = 12.sp)
+                            Text("Up Directory", fontSize = 11.sp)
                         }
                     }
                 }
             }
 
-            // Refresh Custom Folder Control Card inside Tab 2
-            if (currentSubfolder == null && selectedTab == 2) {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFF0FDF4)),
-                    border = BorderStroke(1.dp, Color(0xFF86EFAC)),
-                    shape = RoundedCornerShape(12.dp)
+            // Sync Status Indicator Banner (Compact height, shown only when status is non-empty)
+            if (currentSubfolder == null && selectedTab == 2 && syncStatus.isNotEmpty()) {
+                Surface(
+                    color = if (syncStatus.contains("failed", ignoreCase = true) || syncStatus.contains("not set", ignoreCase = true) || syncStatus.contains("required", ignoreCase = true))
+                        Color(0xFFFEE2E2) else Color(0xFFDCFCE7),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Column(
-                        modifier = Modifier.padding(14.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        // Title Row
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = Color(0xFFDCFCE7),
-                                modifier = Modifier.size(36.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = Icons.Default.Chat,
-                                        contentDescription = null,
-                                        tint = Color(0xFF16A34A),
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                            }
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "Custom WhatsApp Media Folder",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 14.sp,
-                                    color = Color(0xFF14532D)
-                                )
-                                Text(
-                                    text = "Imports today's & yesterday's WhatsApp Docs & Images",
-                                    fontSize = 11.sp,
-                                    color = Color(0xFF166534).copy(alpha = 0.85f)
-                                )
-                            }
-                        }
-
-                        // Full-Width Refresh Button (Brought down into clean full-width row)
-                        Button(
-                            onClick = { viewModel.refreshCustomWhatsappFolder(context) },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF16A34A)),
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(42.dp),
-                            contentPadding = PaddingValues(horizontal = 16.dp)
-                        ) {
-                            Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Refresh Custom Folder", fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                        }
-
-                        if (syncStatus.isNotEmpty()) {
-                            Surface(
-                                shape = RoundedCornerShape(6.dp),
-                                color = if (syncStatus.contains("failed", ignoreCase = true) || syncStatus.contains("not set", ignoreCase = true) || syncStatus.contains("required", ignoreCase = true))
-                                    Color(0xFFFEE2E2) else Color(0xFFDCFCE7),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text(
-                                    text = syncStatus,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = if (syncStatus.contains("failed", ignoreCase = true) || syncStatus.contains("not set", ignoreCase = true) || syncStatus.contains("required", ignoreCase = true))
-                                        Color(0xFF991B1B) else Color(0xFF166534),
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-                                )
-                            }
-                        }
+                        Text(
+                            text = syncStatus,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (syncStatus.contains("failed", ignoreCase = true) || syncStatus.contains("not set", ignoreCase = true) || syncStatus.contains("required", ignoreCase = true))
+                                Color(0xFF991B1B) else Color(0xFF166534),
+                            modifier = Modifier.weight(1f)
+                        )
                     }
                 }
             }
@@ -331,21 +302,21 @@ fun FileCleanupScreen(
                             imageVector = Icons.Default.FolderOff,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-                            modifier = Modifier.size(56.dp)
+                            modifier = Modifier.size(52.dp)
                         )
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(10.dp))
                         Text(
-                            "No files found in this folder.",
+                            text = "No files found in this folder.",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            if (currentSubfolder != null) "Subfolder is empty."
-                            else if (selectedTab == 0) "Source folder is empty or not configured in Settings."
-                            else if (selectedTab == 1) "No output files or customer directories created yet."
-                            else "Custom WhatsApp folder is empty.\nTap 'Refresh' above to fetch today's & yesterday's WhatsApp files.",
+                            text = if (currentSubfolder != null) "Subfolder is empty."
+                                   else if (selectedTab == 0) "Inbox (Source folder) is empty or not set in Settings."
+                                   else if (selectedTab == 1) "Outbox (Destination folder) is empty."
+                                   else "Custom WA folder is empty.\nTap the refresh icon 🔄 on the tab to fetch recent WA files.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                             modifier = Modifier.padding(horizontal = 24.dp)
@@ -357,40 +328,41 @@ fun FileCleanupScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .weight(1f)
-                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                        .padding(horizontal = 10.dp, vertical = 4.dp)
                 ) {
                     // Select All Row
                     val allSelected = rawCurrentFiles.isNotEmpty() && rawCurrentFiles.all { selectedUris[it.second] == true }
                     Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        shape = RoundedCornerShape(6.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 12.dp, vertical = 6.dp),
+                                .padding(horizontal = 10.dp, vertical = 4.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Text(
                                 text = "Select All (${rawCurrentFiles.size} items)",
                                 fontWeight = FontWeight.SemiBold,
-                                fontSize = 13.sp,
+                                fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Checkbox(
                                 checked = allSelected,
                                 onCheckedChange = { isChecked ->
                                     rawCurrentFiles.forEach { selectedUris[it.second] = isChecked }
-                                }
+                                },
+                                modifier = Modifier.size(24.dp)
                             )
                         }
                     }
                     
                     // Subfolder loading indicator
                     if (isLoadingSubfolder) {
-                        Spacer(modifier = Modifier.height(4.dp))
+                        Spacer(modifier = Modifier.height(2.dp))
                         LinearProgressIndicator(
                             modifier = Modifier.fillMaxWidth().height(2.dp),
                             color = MaterialTheme.colorScheme.primary
@@ -400,13 +372,13 @@ fun FileCleanupScreen(
                     // File count badge
                     if (totalCurrentCount > MAX_DISPLAY) {
                         Text(
-                            "Showing $MAX_DISPLAY of $totalCurrentCount items (sorted newest first)",
-                            fontSize = 11.sp,
+                            text = "Showing $MAX_DISPLAY of $totalCurrentCount items (newest first)",
+                            fontSize = 10.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
                         )
                     } else {
-                        Spacer(modifier = Modifier.height(6.dp))
+                        Spacer(modifier = Modifier.height(4.dp))
                     }
 
                     // Lazy List of Files/Folders
@@ -414,13 +386,13 @@ fun FileCleanupScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                        verticalArrangement = Arrangement.spacedBy(5.dp)
                     ) {
                         items(rawCurrentFiles, key = { it.second.toString() }) { (name, uri, isDirectory) ->
                             var showItemMenu by remember { mutableStateOf(false) }
 
                             Card(
-                                shape = RoundedCornerShape(10.dp),
+                                shape = RoundedCornerShape(8.dp),
                                 colors = CardDefaults.cardColors(
                                     containerColor = if (isDirectory) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.25f) 
                                                       else MaterialTheme.colorScheme.surface
@@ -428,7 +400,7 @@ fun FileCleanupScreen(
                                 border = BorderStroke(
                                     width = 1.dp,
                                     color = if (selectedUris[uri] == true) MaterialTheme.colorScheme.primary 
-                                            else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                                            else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
                                 ),
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -450,25 +422,26 @@ fun FileCleanupScreen(
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(horizontal = 8.dp, vertical = 8.dp),
+                                        .padding(horizontal = 6.dp, vertical = 6.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Checkbox(
                                         checked = selectedUris[uri] == true,
                                         onCheckedChange = { isChecked ->
                                             selectedUris[uri] = isChecked
-                                        }
+                                        },
+                                        modifier = Modifier.size(24.dp)
                                     )
-                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
                                     
-                                    // Colored File/Folder Icon
+                                    // Colored File/Folder Icon Badge
                                     Surface(
-                                        shape = RoundedCornerShape(8.dp),
+                                        shape = RoundedCornerShape(6.dp),
                                         color = if (isDirectory) Color(0xFFFEF3C7)
                                                 else if (name.endsWith(".pdf", true)) Color(0xFFFEE2E2)
                                                 else if (name.endsWith(".jpg", true) || name.endsWith(".png", true) || name.endsWith(".jpeg", true)) Color(0xFFDCFCE7)
                                                 else MaterialTheme.colorScheme.surfaceVariant,
-                                        modifier = Modifier.size(38.dp)
+                                        modifier = Modifier.size(34.dp)
                                     ) {
                                         Box(contentAlignment = Alignment.Center) {
                                             Icon(
@@ -481,36 +454,36 @@ fun FileCleanupScreen(
                                                        else if (name.endsWith(".pdf", true)) Color(0xFFDC2626)
                                                        else if (name.endsWith(".jpg", true) || name.endsWith(".png", true) || name.endsWith(".jpeg", true)) Color(0xFF16A34A)
                                                        else MaterialTheme.colorScheme.onSurfaceVariant,
-                                                modifier = Modifier.size(20.dp)
+                                                modifier = Modifier.size(18.dp)
                                             )
                                         }
                                     }
                                     
-                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
                                     
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(
                                             text = name,
                                             style = MaterialTheme.typography.bodyMedium,
                                             fontWeight = if (isDirectory) FontWeight.Bold else FontWeight.SemiBold,
+                                            fontSize = 13.sp,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis
                                         )
-                                        Spacer(modifier = Modifier.height(2.dp))
                                         Text(
                                             text = if (isDirectory) "Directory • Tap to open" else "File • Tap to view",
-                                            fontSize = 11.sp,
+                                            fontSize = 10.sp,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
 
-                                    // Item Overflow Options Menu
+                                    // Item Options Menu
                                     Box {
                                         IconButton(
                                             onClick = { showItemMenu = true },
-                                            modifier = Modifier.size(32.dp)
+                                            modifier = Modifier.size(28.dp)
                                         ) {
-                                            Icon(Icons.Default.MoreVert, contentDescription = "Options", modifier = Modifier.size(18.dp))
+                                            Icon(Icons.Default.MoreVert, contentDescription = "Options", modifier = Modifier.size(16.dp))
                                         }
                                         DropdownMenu(
                                             expanded = showItemMenu,
@@ -535,7 +508,7 @@ fun FileCleanupScreen(
                                                 }
                                             )
                                             DropdownMenuItem(
-                                                text = { Text("Send to Source") },
+                                                text = { Text("Send to Inbox") },
                                                 leadingIcon = { Icon(Icons.Default.Input, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
                                                 onClick = {
                                                     showItemMenu = false
@@ -577,22 +550,22 @@ fun FileCleanupScreen(
                         }
                     }
                     
-                    // Selected Items File Operations Toolbar — Cleanly Aligned 2x2 Grid
+                    // Selected Items File Operations Toolbar — Docked compact bottom toolbar
                     val checkedUris = selectedUris.filter { it.value }.keys.toList()
                     val selectedCount = checkedUris.size
                     
                     if (selectedCount > 0) {
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(4.dp))
                         Card(
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
                             elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
-                            shape = RoundedCornerShape(12.dp),
+                            shape = RoundedCornerShape(10.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Column(
-                                modifier = Modifier.padding(12.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                                modifier = Modifier.padding(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
                                 // Selection Header
                                 Row(
@@ -611,28 +584,28 @@ fun FileCleanupScreen(
                                                 fontWeight = FontWeight.Bold,
                                                 fontSize = 11.sp,
                                                 color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 1.dp)
                                             )
                                         }
                                         Text(
-                                            text = "item(s) selected",
+                                            text = "selected",
                                             fontWeight = FontWeight.Bold,
-                                            fontSize = 13.sp,
+                                            fontSize = 12.sp,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
                                     TextButton(
                                         onClick = { selectedUris.clear() },
-                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
                                     ) {
-                                        Text("Deselect All", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                        Text("Deselect", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                     }
                                 }
 
-                                // Action Buttons Row 1: Send to Source & Share
+                                // Action Buttons Row: Compact single/dual row layout
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
                                     Button(
                                         onClick = {
@@ -641,14 +614,14 @@ fun FileCleanupScreen(
                                         },
                                         modifier = Modifier
                                             .weight(1f)
-                                            .height(40.dp),
+                                            .height(36.dp),
                                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary),
-                                        shape = RoundedCornerShape(8.dp),
-                                        contentPadding = PaddingValues(horizontal = 8.dp)
+                                        shape = RoundedCornerShape(6.dp),
+                                        contentPadding = PaddingValues(horizontal = 4.dp)
                                     ) {
-                                        Icon(Icons.Default.Input, contentDescription = null, modifier = Modifier.size(16.dp))
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Text("To Source", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                        Icon(Icons.Default.Input, contentDescription = null, modifier = Modifier.size(15.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("To Inbox", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                     }
 
                                     Button(
@@ -657,22 +630,16 @@ fun FileCleanupScreen(
                                         },
                                         modifier = Modifier
                                             .weight(1f)
-                                            .height(40.dp),
+                                            .height(36.dp),
                                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                                        shape = RoundedCornerShape(8.dp),
-                                        contentPadding = PaddingValues(horizontal = 8.dp)
+                                        shape = RoundedCornerShape(6.dp),
+                                        contentPadding = PaddingValues(horizontal = 4.dp)
                                     ) {
-                                        Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp))
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Text("Share", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                        Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(15.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("Share", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                     }
-                                }
 
-                                // Action Buttons Row 2: Rename (if single item) & Delete
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
                                     if (selectedCount == 1) {
                                         val targetUri = checkedUris.first()
                                         val targetName = rawCurrentFiles.firstOrNull { it.second == targetUri }?.first ?: ""
@@ -684,13 +651,13 @@ fun FileCleanupScreen(
                                             },
                                             modifier = Modifier
                                                 .weight(1f)
-                                                .height(40.dp),
-                                            shape = RoundedCornerShape(8.dp),
-                                            contentPadding = PaddingValues(horizontal = 8.dp)
+                                                .height(36.dp),
+                                            shape = RoundedCornerShape(6.dp),
+                                            contentPadding = PaddingValues(horizontal = 4.dp)
                                         ) {
-                                            Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
-                                            Spacer(modifier = Modifier.width(6.dp))
-                                            Text("Rename", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                            Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(15.dp))
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text("Rename", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                         }
                                     }
 
@@ -701,14 +668,14 @@ fun FileCleanupScreen(
                                         },
                                         modifier = Modifier
                                             .weight(1f)
-                                            .height(40.dp),
+                                            .height(36.dp),
                                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-                                        shape = RoundedCornerShape(8.dp),
-                                        contentPadding = PaddingValues(horizontal = 8.dp)
+                                        shape = RoundedCornerShape(6.dp),
+                                        contentPadding = PaddingValues(horizontal = 4.dp)
                                     ) {
-                                        Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(16.dp))
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Text("Delete", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                        Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(15.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("Delete", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                     }
                                 }
                             }
