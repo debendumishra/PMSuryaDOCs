@@ -360,7 +360,7 @@ fun HomeScreen(
                 }
             }
 
-            // Quick Utility Portals Section — 3 portals: Aadhaar, TPCODL Bill, Land Record
+            // Quick Utility Portals Section — 4 portals in 2x2 grid: Aadhaar, TPCODL Bill, Land Record, TPCODL WhatsApp Chat
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -377,15 +377,16 @@ fun HomeScreen(
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        text = "Official Downloads",
+                        text = "Official Downloads & Support",
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
 
+                // Row 1: Aadhaar Card & TPCODL Bill
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     // Portal 1: Aadhaar Card Download (UIDAI Tathya Portal)
                     Card(
@@ -399,32 +400,32 @@ fun HomeScreen(
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                         border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f))
                     ) {
-                        Column(
-                            modifier = Modifier.padding(10.dp),
-                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.primaryContainer,
+                                modifier = Modifier.size(36.dp)
                             ) {
-                                Surface(
-                                    shape = RoundedCornerShape(6.dp),
-                                    color = MaterialTheme.colorScheme.primaryContainer,
-                                    modifier = Modifier.size(28.dp)
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Icon(Icons.Default.Badge, null,
-                                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                            modifier = Modifier.size(16.dp))
-                                    }
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(Icons.Default.Badge, null,
+                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        modifier = Modifier.size(18.dp))
                                 }
-                                Icon(Icons.Default.OpenInNew, null,
-                                    tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(13.dp))
                             }
-                            Text("Aadhaar", fontSize = 11.sp, fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface, maxLines = 1)
-                            Text("UIDAI Portal", fontSize = 9.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Aadhaar Card", fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface, maxLines = 1)
+                                Text("UIDAI Portal", fontSize = 10.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                            }
+                            Icon(Icons.Default.OpenInNew, null,
+                                tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(14.dp))
                         }
                     }
 
@@ -440,35 +441,41 @@ fun HomeScreen(
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                         border = BorderStroke(1.dp, MaterialTheme.colorScheme.secondary.copy(alpha = 0.35f))
                     ) {
-                        Column(
-                            modifier = Modifier.padding(10.dp),
-                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.secondaryContainer,
+                                modifier = Modifier.size(36.dp)
                             ) {
-                                Surface(
-                                    shape = RoundedCornerShape(6.dp),
-                                    color = MaterialTheme.colorScheme.secondaryContainer,
-                                    modifier = Modifier.size(28.dp)
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Icon(Icons.Default.ElectricBolt, null,
-                                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                                            modifier = Modifier.size(16.dp))
-                                    }
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(Icons.Default.ElectricBolt, null,
+                                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                        modifier = Modifier.size(18.dp))
                                 }
-                                Icon(Icons.Default.OpenInNew, null,
-                                    tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(13.dp))
                             }
-                            Text("TPCODL Bill", fontSize = 11.sp, fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface, maxLines = 1)
-                            Text("Tata Power", fontSize = 9.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("TPCODL Bill", fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface, maxLines = 1)
+                                Text("Tata Power", fontSize = 10.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                            }
+                            Icon(Icons.Default.OpenInNew, null,
+                                tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(14.dp))
                         }
                     }
+                }
 
+                // Row 2: Land Record & TPCODL WhatsApp Chat (+919937875999)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
                     // Portal 3: Land Record Download (Odisha Bhulekh)
                     Card(
                         onClick = {
@@ -481,32 +488,73 @@ fun HomeScreen(
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                         border = BorderStroke(1.dp, Color(0xFF16A34A).copy(alpha = 0.35f))
                     ) {
-                        Column(
-                            modifier = Modifier.padding(10.dp),
-                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = Color(0xFFDCFCE7),
+                                modifier = Modifier.size(36.dp)
                             ) {
-                                Surface(
-                                    shape = RoundedCornerShape(6.dp),
-                                    color = Color(0xFFDCFCE7),
-                                    modifier = Modifier.size(28.dp)
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Icon(Icons.Default.Landscape, null,
-                                            tint = Color(0xFF16A34A),
-                                            modifier = Modifier.size(16.dp))
-                                    }
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(Icons.Default.Landscape, null,
+                                        tint = Color(0xFF16A34A),
+                                        modifier = Modifier.size(18.dp))
                                 }
-                                Icon(Icons.Default.OpenInNew, null,
-                                    tint = Color(0xFF16A34A), modifier = Modifier.size(13.dp))
                             }
-                            Text("Land Record", fontSize = 11.sp, fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface, maxLines = 1)
-                            Text("Bhulekh Portal", fontSize = 9.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Land Record", fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface, maxLines = 1)
+                                Text("Bhulekh Portal", fontSize = 10.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                            }
+                            Icon(Icons.Default.OpenInNew, null,
+                                tint = Color(0xFF16A34A), modifier = Modifier.size(14.dp))
+                        }
+                    }
+
+                    // Portal 4: TPCODL WhatsApp Chat (+919937875999)
+                    Card(
+                        onClick = {
+                            val waChatUrl = "https://wa.me/919937875999"
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(waChatUrl))
+                            context.startActivity(intent)
+                        },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF0FDF4)),
+                        border = BorderStroke(1.dp, Color(0xFF22C55E).copy(alpha = 0.5f))
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = Color(0xFFDCFCE7),
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(Icons.Default.Chat, null,
+                                        tint = Color(0xFF16A34A),
+                                        modifier = Modifier.size(18.dp))
+                                }
+                            }
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("TPCODL Chat", fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF14532D), maxLines = 1)
+                                Text("WhatsApp", fontSize = 10.sp,
+                                    color = Color(0xFF166534), maxLines = 1)
+                            }
+                            Icon(Icons.Default.OpenInNew, null,
+                                tint = Color(0xFF16A34A), modifier = Modifier.size(14.dp))
                         }
                     }
                 }

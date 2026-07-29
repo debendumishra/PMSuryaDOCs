@@ -247,60 +247,61 @@ fun FileCleanupScreen(
                 ) {
                     Column(
                         modifier = Modifier.padding(14.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
+                        // Title Row
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Surface(
-                                    shape = RoundedCornerShape(8.dp),
-                                    color = Color(0xFFDCFCE7),
-                                    modifier = Modifier.size(32.dp)
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Icon(
-                                            imageVector = Icons.Default.Chat,
-                                            contentDescription = null,
-                                            tint = Color(0xFF16A34A),
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                    }
-                                }
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Column {
-                                    Text(
-                                        text = "Custom WhatsApp Folder",
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 14.sp,
-                                        color = Color(0xFF14532D)
-                                    )
-                                    Text(
-                                        text = "Syncs today's & yesterday's WhatsApp media",
-                                        fontSize = 11.sp,
-                                        color = Color(0xFF166534).copy(alpha = 0.8f)
-                                    )
-                                }
-                            }
-                            
-                            Button(
-                                onClick = { viewModel.refreshCustomWhatsappFolder(context) },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF16A34A)),
+                            Surface(
                                 shape = RoundedCornerShape(8.dp),
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                                color = Color(0xFFDCFCE7),
+                                modifier = Modifier.size(36.dp)
                             ) {
-                                Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("Refresh", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.Chat,
+                                        contentDescription = null,
+                                        tint = Color(0xFF16A34A),
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
                             }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Custom WhatsApp Media Folder",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp,
+                                    color = Color(0xFF14532D)
+                                )
+                                Text(
+                                    text = "Imports today's & yesterday's WhatsApp Docs & Images",
+                                    fontSize = 11.sp,
+                                    color = Color(0xFF166534).copy(alpha = 0.85f)
+                                )
+                            }
+                        }
+
+                        // Full-Width Refresh Button (Brought down into clean full-width row)
+                        Button(
+                            onClick = { viewModel.refreshCustomWhatsappFolder(context) },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF16A34A)),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(42.dp),
+                            contentPadding = PaddingValues(horizontal = 16.dp)
+                        ) {
+                            Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Refresh Custom Folder", fontSize = 13.sp, fontWeight = FontWeight.Bold)
                         }
 
                         if (syncStatus.isNotEmpty()) {
                             Surface(
                                 shape = RoundedCornerShape(6.dp),
-                                color = if (syncStatus.contains("failed", ignoreCase = true) || syncStatus.contains("not set", ignoreCase = true))
+                                color = if (syncStatus.contains("failed", ignoreCase = true) || syncStatus.contains("not set", ignoreCase = true) || syncStatus.contains("required", ignoreCase = true))
                                     Color(0xFFFEE2E2) else Color(0xFFDCFCE7),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
@@ -308,9 +309,9 @@ fun FileCleanupScreen(
                                     text = syncStatus,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.SemiBold,
-                                    color = if (syncStatus.contains("failed", ignoreCase = true) || syncStatus.contains("not set", ignoreCase = true))
+                                    color = if (syncStatus.contains("failed", ignoreCase = true) || syncStatus.contains("not set", ignoreCase = true) || syncStatus.contains("required", ignoreCase = true))
                                         Color(0xFF991B1B) else Color(0xFF166534),
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                                 )
                             }
                         }
