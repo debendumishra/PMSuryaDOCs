@@ -1,7 +1,10 @@
 package com.pmsuryaghar.docprocessor.ui.screens
 
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Intent
 import android.net.Uri
+import android.widget.Toast
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -52,6 +55,7 @@ fun HomeScreen(
     val negativeRemarks by viewModel.negativeRemarks.collectAsState()
     val missingDocuments by viewModel.missingDocuments.collectAsState()
     val scrollState = rememberScrollState()
+    val detectedConsumerNo by viewModel.detectedConsumerNo.collectAsState()
     var showAboutDialog by remember { mutableStateOf(false) }
 
     // Periodically update source folder file count when HomeScreen opens
@@ -203,6 +207,49 @@ fun HomeScreen(
                                 color = Color.White.copy(alpha = 0.8f),
                                 lineHeight = 18.sp
                             )
+                        }
+                    }
+                }
+            }
+
+            // Consumer No Tag Section
+            if (detectedConsumerNo.isNotBlank()) {
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 0.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp).fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column {
+                            Text("Last Processed Consumer No", fontSize = 11.sp, color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f))
+                            Text(detectedConsumerNo, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.onTertiaryContainer)
+                        }
+                        IconButton(
+                            onClick = {
+                                val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                clipboard.setPrimaryClip(ClipData.newPlainText("Consumer No", detectedConsumerNo))
+                                Toast.makeText(context, "Copied Consumer No", Toast.LENGTH_SHORT).show()
+                                
+                                val waNumber = appSettings.tpcodlWhatsappNumber
+                                if (waNumber.isNotBlank()) {
+                                    try {
+                                        val intent = Intent(Intent.ACTION_VIEW)
+                                        intent.data = Uri.parse("https://wa.me/91$waNumber?text=Hi")
+                                        context.startActivity(intent)
+                                    } catch (e: Exception) {
+                                        Toast.makeText(context, "WhatsApp not installed", Toast.LENGTH_SHORT).show()
+                                    }
+                                } else {
+                                    Toast.makeText(context, "Please configure TPCODL WhatsApp number in Settings", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            modifier = Modifier.background(Color(0xFF25D366), CircleShape).size(40.dp)
+                        ) {
+                            Icon(Icons.Default.Chat, contentDescription = "WhatsApp", tint = Color.White, modifier = Modifier.size(20.dp))
                         }
                     }
                 }
@@ -517,10 +564,11 @@ fun HomeScreen(
                         }
                     }
 
-                    // Portal 4: TPCODL WhatsApp Chat (+919937875999)
+                    // Portal 4: TPCODL WhatsApp Chat
                     Card(
                         onClick = {
-                            val waChatUrl = "https://wa.me/919937875999"
+                            val number = if (appSettings.tpcodlWhatsappNumber.isNotBlank()) appSettings.tpcodlWhatsappNumber else "919937875999"
+                            val waChatUrl = "https://wa.me/$number"
                             val intent = Intent(Intent.ACTION_VIEW, Uri.parse(waChatUrl))
                             context.startActivity(intent)
                         },

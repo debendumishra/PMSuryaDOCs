@@ -4,12 +4,13 @@ import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -68,16 +69,15 @@ fun SettingsScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Settings", fontWeight = FontWeight.Bold) },
+            LargeTopAppBar(
+                title = { Text("Settings") },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                colors = TopAppBarDefaults.largeTopAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
                 )
             )
         }
@@ -86,345 +86,241 @@ fun SettingsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(16.dp)
                 .verticalScroll(scrollState),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Folder Configurations Card
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        "Storage Folders",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
+            
+            SettingsSectionHeader("Storage Folders")
+            
+            SettingsFolderItem(
+                title = "Source WhatsApp Folder",
+                uriString = settings.sourceFolderUri,
+                onClick = { sourceLauncher.launch(null) }
+            )
+            
+            SettingsFolderItem(
+                title = "Custom WhatsApp Media Folder",
+                uriString = settings.whatsappMediaFolderUri,
+                onClick = { waMediaLauncher.launch(null) },
+                fallbackSubtitle = "Not Configured (Tap to set folder)"
+            )
+            
+            SettingsFolderItem(
+                title = "Default Output Folder",
+                uriString = settings.defaultOutputFolderUri,
+                onClick = { outputLauncher.launch(null) }
+            )
+            
+            Divider(modifier = Modifier.padding(vertical = 8.dp))
+            
+            SettingsSectionHeader("WhatsApp Integration")
+            
+            SettingsTextInputItem(
+                title = "Destination WhatsApp Number",
+                subtitle = "Include country code (e.g. 91 for India)",
+                value = settings.destinationWhatsAppNumber,
+                onValueChange = { viewModel.updateSettings(settings.copy(destinationWhatsAppNumber = it)) },
+                placeholder = "e.g. 919876543210"
+            )
 
-                    // Source Folder Config
-                    Text("Source WhatsApp Folder:", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = if (settings.sourceFolderUri.isEmpty()) "Not Configured" else Uri.parse(settings.sourceFolderUri).path ?: "Selected Directory",
-                            modifier = Modifier.weight(1f),
-                            style = MaterialTheme.typography.bodySmall,
-                            maxLines = 2
+            SettingsTextInputItem(
+                title = "TPCODL WhatsApp Number",
+                subtitle = "For opening TPCODL via WhatsApp",
+                value = settings.tpcodlWhatsappNumber,
+                onValueChange = { viewModel.updateSettings(settings.copy(tpcodlWhatsappNumber = it)) },
+                placeholder = "e.g. 919876543210"
+            )
+
+            Divider(modifier = Modifier.padding(vertical = 8.dp))
+            
+            SettingsSectionHeader("Processing Preferences")
+            
+            ListItem(
+                headlineContent = { Text("AI Verification Agent") },
+                supportingContent = { Text("Choose AI assistant to perform document analysis") },
+                trailingContent = {
+                    Row {
+                        FilterChip(
+                            selected = settings.selectedAiAgent.equals("Gemini", ignoreCase = true),
+                            onClick = { viewModel.updateSettings(settings.copy(selectedAiAgent = "Gemini")) },
+                            label = { Text("Gemini") }
                         )
-                        Button(onClick = { sourceLauncher.launch(null) }) {
-                            Icon(Icons.Default.Folder, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Select")
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    // Custom WhatsApp Media Folder Config
-                    Text("Custom WhatsApp Media Folder:", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = if (settings.whatsappMediaFolderUri.isEmpty()) "Not Configured (Tap Select to set folder)" else Uri.parse(settings.whatsappMediaFolderUri).path ?: "Selected Directory",
-                            modifier = Modifier.weight(1f),
-                            style = MaterialTheme.typography.bodySmall,
-                            maxLines = 2
-                        )
-                        Button(onClick = { waMediaLauncher.launch(null) }) {
-                            Icon(Icons.Default.Folder, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Select")
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    // Output Folder Config
-                    Text("Default Output Folder:", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = if (settings.defaultOutputFolderUri.isEmpty()) "Not Configured" else Uri.parse(settings.defaultOutputFolderUri).path ?: "Selected Directory",
-                            modifier = Modifier.weight(1f),
-                            style = MaterialTheme.typography.bodySmall,
-                            maxLines = 2
-                        )
-                        Button(onClick = { outputLauncher.launch(null) }) {
-                            Icon(Icons.Default.Folder, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Select")
-                        }
-                    }
-                }
-            }
-
-            // WhatsApp Settings Card
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        "WhatsApp Integration",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    OutlinedTextField(
-                        value = settings.destinationWhatsAppNumber,
-                        onValueChange = { viewModel.updateSettings(settings.copy(destinationWhatsAppNumber = it)) },
-                        label = { Text("Destination WhatsApp Number") },
-                        placeholder = { Text("e.g. 919876543210") },
-                        helperText = { Text("Include country code (e.g. 91 for India)") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
-                    )
-                }
-            }
-
-            // Application Preferences Card
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        "Processing Preferences",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    // AI Agent Selector (Gemini or ChatGPT)
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("AI Verification Agent:", fontWeight = FontWeight.Medium)
-                            Text("Choose AI assistant to perform document analysis", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
                         Spacer(modifier = Modifier.width(8.dp))
-                        Row {
-                            FilterChip(
-                                selected = settings.selectedAiAgent.equals("Gemini", ignoreCase = true),
-                                onClick = { viewModel.updateSettings(settings.copy(selectedAiAgent = "Gemini")) },
-                                label = { Text("Gemini") }
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            FilterChip(
-                                selected = settings.selectedAiAgent.equals("ChatGPT", ignoreCase = true),
-                                onClick = { viewModel.updateSettings(settings.copy(selectedAiAgent = "ChatGPT")) },
-                                label = { Text("ChatGPT") }
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    // Language Selector
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("Verification Language:")
-                        Row {
-                            FilterChip(
-                                selected = settings.language == "English",
-                                onClick = { viewModel.updateSettings(settings.copy(language = "English")) },
-                                label = { Text("English") }
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            FilterChip(
-                                selected = settings.language == "Odia",
-                                onClick = { viewModel.updateSettings(settings.copy(language = "Odia")) },
-                                label = { Text("Odia") }
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    // Max PDF Size
-                    OutlinedTextField(
-                        value = settings.maxPdfSizeMb.toString(),
-                        onValueChange = {
-                            val parsed = it.toFloatOrNull()
-                            if (parsed != null) {
-                                viewModel.updateSettings(settings.copy(maxPdfSizeMb = parsed))
-                            }
-                        },
-                        label = { Text("Maximum PDF File Size (MB)") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
-                    )
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    // ZIP format
-                    OutlinedTextField(
-                        value = settings.zipFilenameFormat,
-                        onValueChange = { viewModel.updateSettings(settings.copy(zipFilenameFormat = it)) },
-                        label = { Text("ZIP Filename Format") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
-                    )
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    // Generate PDF Report toggle
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("Generate PDF Report", fontWeight = FontWeight.Medium)
-                            Text("Create both DOCX and PDF verification reports", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        Switch(
-                            checked = settings.generatePdfReport,
-                            onCheckedChange = { viewModel.updateSettings(settings.copy(generatePdfReport = it)) }
+                        FilterChip(
+                            selected = settings.selectedAiAgent.equals("ChatGPT", ignoreCase = true),
+                            onClick = { viewModel.updateSettings(settings.copy(selectedAiAgent = "ChatGPT")) },
+                            label = { Text("ChatGPT") }
                         )
                     }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    Button(
-                        onClick = {
-                            viewModel.updateSettings(settings.copy(lastProcessingTimestamp = 0L))
-                        },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.errorContainer,
-                            contentColor = MaterialTheme.colorScheme.onErrorContainer
-                        ),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Reset Last Execution Time")
+                }
+            )
+            
+            ListItem(
+                headlineContent = { Text("Verification Language") },
+                trailingContent = {
+                    Row {
+                        FilterChip(
+                            selected = settings.language == "English",
+                            onClick = { viewModel.updateSettings(settings.copy(language = "English")) },
+                            label = { Text("English") }
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        FilterChip(
+                            selected = settings.language == "Odia",
+                            onClick = { viewModel.updateSettings(settings.copy(language = "Odia")) },
+                            label = { Text("Odia") }
+                        )
                     }
                 }
-            }
-
-            // Quick Utility Portals Configuration Card
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        "Verification Portal URLs",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    OutlinedTextField(
-                        value = settings.aadhaarPortalUrl,
-                        onValueChange = { viewModel.updateSettings(settings.copy(aadhaarPortalUrl = it)) },
-                        label = { Text("Aadhaar Verification Web Portal URL") },
-                        placeholder = { Text("https://tathya.uidai.gov.in/access/login?role=resident") },
-                        helperText = { Text("URL launched when tapping the Aadhaar card link on the Dashboard") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
-                    )
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    OutlinedTextField(
-                        value = settings.electricityPortalUrl,
-                        onValueChange = { viewModel.updateSettings(settings.copy(electricityPortalUrl = it)) },
-                        label = { Text("Electricity Bill Web Portal URL") },
-                        placeholder = { Text("https://mytatapowerplus.tatapower.com/#/offerings") },
-                        helperText = { Text("URL launched when tapping the TPCODL / Electricity bill link on the Dashboard") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
-                    )
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    OutlinedTextField(
-                        value = settings.landRecordPortalUrl,
-                        onValueChange = { viewModel.updateSettings(settings.copy(landRecordPortalUrl = it)) },
-                        label = { Text("Land Record Web Portal URL") },
-                        placeholder = { Text("https://bhulekh.ori.nic.in/") },
-                        helperText = { Text("URL launched when tapping the Land Record link on the Dashboard (default: Odisha Bhulekh)") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
-                    )
+            )
+            
+            SettingsTextInputItem(
+                title = "Maximum PDF File Size (MB)",
+                value = settings.maxPdfSizeMb.toString(),
+                onValueChange = { 
+                    val parsed = it.toFloatOrNull()
+                    if (parsed != null) {
+                        viewModel.updateSettings(settings.copy(maxPdfSizeMb = parsed))
+                    }
                 }
-            }
-
-            // Gemini Prompt Card
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        "Default Gemini Prompt",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
+            )
+            
+            SettingsTextInputItem(
+                title = "ZIP Filename Format",
+                value = settings.zipFilenameFormat,
+                onValueChange = { viewModel.updateSettings(settings.copy(zipFilenameFormat = it)) }
+            )
+            
+            ListItem(
+                headlineContent = { Text("Generate PDF Report") },
+                supportingContent = { Text("Create both DOCX and PDF verification reports") },
+                trailingContent = {
+                    Switch(
+                        checked = settings.generatePdfReport,
+                        onCheckedChange = { viewModel.updateSettings(settings.copy(generatePdfReport = it)) }
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    OutlinedTextField(
-                        value = settings.defaultGeminiPrompt,
-                        onValueChange = { viewModel.updateSettings(settings.copy(defaultGeminiPrompt = it)) },
-                        label = { Text("Verification Prompt") },
-                        modifier = Modifier.fillMaxWidth().height(240.dp),
-                        maxLines = 15
-                    )
-                }
+                },
+                modifier = Modifier.clickable { viewModel.updateSettings(settings.copy(generatePdfReport = !settings.generatePdfReport)) }
+            )
+            
+            ListItem(
+                headlineContent = { Text("Reset Last Execution Time", color = MaterialTheme.colorScheme.error) },
+                supportingContent = { Text("Reset the timestamp to process all files again") },
+                modifier = Modifier.clickable { viewModel.updateSettings(settings.copy(lastProcessingTimestamp = 0L)) }
+            )
+            
+            Divider(modifier = Modifier.padding(vertical = 8.dp))
+            
+            SettingsSectionHeader("Verification Portal URLs")
+            
+            SettingsTextInputItem(
+                title = "Aadhaar Verification Web Portal URL",
+                subtitle = "URL launched when tapping the Aadhaar card link on the Dashboard",
+                value = settings.aadhaarPortalUrl,
+                onValueChange = { viewModel.updateSettings(settings.copy(aadhaarPortalUrl = it)) },
+                placeholder = "https://tathya.uidai.gov.in/..."
+            )
+            
+            SettingsTextInputItem(
+                title = "Electricity Bill Web Portal URL",
+                subtitle = "URL launched when tapping the TPCODL link on the Dashboard",
+                value = settings.electricityPortalUrl,
+                onValueChange = { viewModel.updateSettings(settings.copy(electricityPortalUrl = it)) },
+                placeholder = "https://mytatapowerplus.tatapower.com/..."
+            )
+            
+            SettingsTextInputItem(
+                title = "Land Record Web Portal URL",
+                subtitle = "URL launched when tapping the Land Record link on the Dashboard",
+                value = settings.landRecordPortalUrl,
+                onValueChange = { viewModel.updateSettings(settings.copy(landRecordPortalUrl = it)) },
+                placeholder = "https://bhulekh.ori.nic.in/"
+            )
+            
+            Divider(modifier = Modifier.padding(vertical = 8.dp))
+            
+            SettingsSectionHeader("Default Gemini Prompt")
+            
+            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                androidx.compose.material3.OutlinedTextField(
+                    value = settings.defaultGeminiPrompt,
+                    onValueChange = { viewModel.updateSettings(settings.copy(defaultGeminiPrompt = it)) },
+                    modifier = Modifier.fillMaxWidth().height(240.dp),
+                    maxLines = 15
+                )
             }
+            
+            Spacer(modifier = Modifier.height(32.dp))
         }
     }
 }
 
-// Simple Helper Extension to show supporting text under OutlinedTextFields
 @Composable
-fun OutlinedTextField(
+fun SettingsSectionHeader(title: String) {
+    Text(
+        text = title,
+        style = MaterialTheme.typography.titleSmall,
+        color = MaterialTheme.colorScheme.primary,
+        fontWeight = FontWeight.Bold,
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+    )
+}
+
+@Composable
+fun SettingsFolderItem(
+    title: String,
+    uriString: String,
+    onClick: () -> Unit,
+    fallbackSubtitle: String = "Not Configured"
+) {
+    ListItem(
+        headlineContent = { Text(title) },
+        supportingContent = { 
+            Text(if (uriString.isEmpty()) fallbackSubtitle else Uri.parse(uriString).path ?: "Selected Directory") 
+        },
+        leadingContent = {
+            Icon(Icons.Default.Folder, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+        },
+        modifier = Modifier.clickable(onClick = onClick)
+    )
+}
+
+@Composable
+fun SettingsTextInputItem(
+    title: String,
     value: String,
     onValueChange: (String) -> Unit,
-    label: @Composable (() -> Unit)?,
-    placeholder: @Composable (() -> Unit)? = null,
-    helperText: @Composable (() -> Unit)? = null,
-    modifier: Modifier = Modifier,
-    singleLine: Boolean = false,
-    maxLines: Int = if (singleLine) 1 else Int.MAX_VALUE
+    subtitle: String? = null,
+    placeholder: String? = null
 ) {
-    Column(modifier = modifier) {
+    var localValue by remember { mutableStateOf(value) }
+    
+    // Sync external changes (e.g. initial load) only if we aren't currently editing
+    // Or just update if external value changes significantly
+    LaunchedEffect(value) {
+        if (value != localValue && localValue.isEmpty()) {
+            localValue = value
+        }
+    }
+
+    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
         androidx.compose.material3.OutlinedTextField(
-            value = value,
-            onValueChange = onValueChange,
-            label = label,
-            placeholder = placeholder,
-            singleLine = singleLine,
-            maxLines = maxLines,
-            modifier = Modifier.fillMaxWidth()
+            value = localValue,
+            onValueChange = { 
+                localValue = it
+                onValueChange(it) 
+            },
+            label = { Text(title) },
+            placeholder = { if (placeholder != null) Text(placeholder) },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true
         )
-        if (helperText != null) {
-            Spacer(modifier = Modifier.height(2.dp))
-            CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onSurfaceVariant) {
-                ProvideTextStyle(value = MaterialTheme.typography.bodySmall) {
-                    helperText()
-                }
-            }
+        if (subtitle != null) {
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp, start = 4.dp)
+            )
         }
     }
 }

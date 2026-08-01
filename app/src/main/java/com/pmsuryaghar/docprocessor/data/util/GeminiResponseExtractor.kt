@@ -10,6 +10,7 @@ object GeminiResponseExtractor {
         val mobileNumber: String,
         val documentMapping: Map<Int, String>,
         val details: Map<String, String>,
+        val electricityConsumerNo: String = "",
         val negativeRemarks: List<String> = emptyList(),
         val missingDocuments: List<String> = emptyList()
     )
@@ -220,9 +221,19 @@ object GeminiResponseExtractor {
         customerName = cleanMarkdown(customerName)
         mobileNumber = cleanMarkdown(mobileNumber)
 
+        var electricityConsumerNo = ""
+        details.forEach { (key, value) ->
+            if (key.contains("Consumer No", ignoreCase = true) || 
+                key.contains("Consumer Number", ignoreCase = true) || 
+                key.contains("Electricity Consumer No", ignoreCase = true)) {
+                electricityConsumerNo = value.trim()
+            }
+        }
+
         return ExtractedInfo(
             customerName = customerName,
             mobileNumber = mobileNumber,
+            electricityConsumerNo = electricityConsumerNo,
             documentMapping = documentMapping,
             details = details,
             negativeRemarks = negativeRemarks.distinct().take(20),

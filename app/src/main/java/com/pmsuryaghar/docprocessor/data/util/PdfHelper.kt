@@ -11,8 +11,26 @@ import com.itextpdf.text.pdf.PdfReader
 import timber.log.Timber
 import java.io.File
 import java.io.FileOutputStream
+import android.net.Uri
+import androidx.core.net.toUri
 
 object PdfHelper {
+
+    /**
+     * Gets the number of pages in a PDF file.
+     */
+    fun getPageCount(file: File): Int {
+        if (!file.exists() || file.length() == 0L) return 0
+        return try {
+            val reader = PdfReader(file.absolutePath)
+            val pages = reader.numberOfPages
+            reader.close()
+            pages
+        } catch (e: Exception) {
+            Timber.e(e, "Error reading page count for ${file.name}")
+            0
+        }
+    }
 
     /**
      * Merges a list of PDF files into a single multi-page PDF document.
@@ -118,7 +136,13 @@ object PdfHelper {
             val systemNameToPages = mutableMapOf<String, MutableList<Int>>()
             for (page in 1..numPages) {
                 val rawType = pageMapping[page] ?: "Other Document"
-                val systemName = normalizeDocType(rawType)
+                var systemName = normalizeDocType(rawType)
+                
+                // If it's "Other", append the page number to prevent unrelated generic pages from merging
+                if (systemName == "Other") {
+                    systemName = "Other_Page_$page"
+                }
+                
                 systemNameToPages.getOrPut(systemName) { mutableListOf() }.add(page)
             }
 
@@ -226,5 +250,42 @@ object PdfHelper {
             try { fileDescriptor?.close() } catch (e: Exception) {}
         }
         return false
+    }
+
+    /**
+     * Renders all pages of a PDF to individual images in the output directory.
+     * Useful for extracting page previews.
+     */
+    fun renderAllPagesToImages(pdfFile: File, outputDirectory: File): List<Uri> {
+        val imageUris = mutableListOf<Uri>()
+        var fileDescriptor: ParcelFileDescriptor? = null
+        var pdfRenderer: PdfRenderer? = null
+        try {
+            fileDescriptor = ParcelFileDescriptor.open(pdfFile, ParcelFileDescriptor.MODE_READ_ONLY)
+            pdfRenderer = PdfRenderer(fileDescriptor)
+            for (i in 0 until pdfRenderer.pageCount) {
+                val page = pdfRenderer.openPage(i)
+                val width = page.width * 2
+                val height = page.height * 2
+                val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+                val canvas = Canvas(bitmap)
+                canvas.drawColor(Color.WHITE)
+                page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                page.close()
+
+                val outputFile = File(outputDirectory, "preview_page_${i + 1}.jpg")
+                FileOutputStream(outputFile).use { out ->
+                    bitmap.compress(Bitmap.CompressFormat.JPEG, 80, out)
+                }
+                bitmap.recycle()
+                imageUris.add(outputFile.toUri())
+            }
+        } catch (e: Exception) {
+            Timber.e(e, "Error rendering all PDF pages to images")
+        } finally {
+            try { pdfRenderer?.close() } catch (e: Exception) {}
+            try { fileDescriptor?.close() } catch (e: Exception) {}
+        }
+        return imageUris
     }
 }

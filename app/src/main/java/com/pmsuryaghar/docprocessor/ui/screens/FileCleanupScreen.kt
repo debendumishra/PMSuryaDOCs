@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.pmsuryaghar.docprocessor.data.util.FileUtils
 import com.pmsuryaghar.docprocessor.ui.viewmodel.MainViewModel
+import com.pmsuryaghar.docprocessor.domain.model.FileItemData
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -41,7 +42,7 @@ fun FileCleanupScreen(
     
     // Active navigation stack for subfolders: Pair(Name, Uri)
     var currentSubfolder by remember { mutableStateOf<Pair<String, Uri>?>(null) }
-    var activeSubfolderFiles by remember { mutableStateOf<List<Triple<String, Uri, Boolean>>>(emptyList()) }
+    var activeSubfolderFiles by remember { mutableStateOf<List<FileItemData>>(emptyList()) }
     var isLoadingSubfolder by remember { mutableStateOf(false) }
     
     val selectedUris = remember { mutableStateMapOf<Uri, Boolean>() }
@@ -49,6 +50,15 @@ fun FileCleanupScreen(
     var renameTarget by remember { mutableStateOf<Pair<String, Uri>?>(null) }
     var renameText by remember { mutableStateOf("") }
     var showRenameDialog by remember { mutableStateOf(false) }
+    var pdfDeleteTarget by remember { mutableStateOf<Pair<String, Uri>?>(null) }
+    var pdfDeleteText by remember { mutableStateOf("") }
+    var showPdfDeleteDialog by remember { mutableStateOf(false) }
+    var pdfSplitTarget by remember { mutableStateOf<Pair<String, Uri>?>(null) }
+    var pdfSplitOption by remember { mutableStateOf(0) }
+    var pdfSplitAtPageText by remember { mutableStateOf("") }
+    var showPdfSplitDialog by remember { mutableStateOf(false) }
+    var zipFileNameText by remember { mutableStateOf("") }
+    var showZipDialog by remember { mutableStateOf(false) }
 
     // Helper to refresh files
     fun refreshCurrentView() {
@@ -97,7 +107,7 @@ fun FileCleanupScreen(
     
     LaunchedEffect(rawCurrentFiles, selectedTab, currentSubfolder) {
         selectedUris.clear()
-        rawCurrentFiles.forEach { selectedUris[it.second] = false }
+        rawCurrentFiles.forEach { selectedUris[it.uri] = false }
     }
     
     Scaffold(
@@ -331,7 +341,7 @@ fun FileCleanupScreen(
                         .padding(horizontal = 10.dp, vertical = 4.dp)
                 ) {
                     // Select All Row
-                    val allSelected = rawCurrentFiles.isNotEmpty() && rawCurrentFiles.all { selectedUris[it.second] == true }
+                    val allSelected = rawCurrentFiles.isNotEmpty() && rawCurrentFiles.all { selectedUris[it.uri] == true }
                     Surface(
                         shape = RoundedCornerShape(6.dp),
                         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
@@ -353,7 +363,7 @@ fun FileCleanupScreen(
                             Checkbox(
                                 checked = allSelected,
                                 onCheckedChange = { isChecked ->
-                                    rawCurrentFiles.forEach { selectedUris[it.second] = isChecked }
+                                    rawCurrentFiles.forEach { selectedUris[it.uri] = isChecked }
                                 },
                                 modifier = Modifier.size(24.dp)
                             )
@@ -388,7 +398,10 @@ fun FileCleanupScreen(
                             .weight(1f),
                         verticalArrangement = Arrangement.spacedBy(5.dp)
                     ) {
-                        items(rawCurrentFiles, key = { it.second.toString() }) { (name, uri, isDirectory) ->
+                        items(rawCurrentFiles, key = { it.uri.toString() }) { fileItem ->
+                            val name = fileItem.name
+                            val uri = fileItem.uri
+                            val isDirectory = fileItem.isDirectory
                             var showItemMenu by remember { mutableStateOf(false) }
 
                             Card(
@@ -470,8 +483,10 @@ fun FileCleanupScreen(
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis
                                         )
+                                        val dateStr = java.text.SimpleDateFormat("dd MMM yy, hh:mm a", java.util.Locale.getDefault()).format(java.util.Date(fileItem.lastModified))
+                                        val sizeStr = android.text.format.Formatter.formatShortFileSize(context, fileItem.size)
                                         Text(
-                                            text = if (isDirectory) "Directory • Tap to open" else "File • Tap to view",
+                                            text = if (isDirectory) "Directory • Tap to open" else "$sizeStr • $dateStr",
                                             fontSize = 10.sp,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
@@ -524,6 +539,47 @@ fun FileCleanupScreen(
                                                     FileUtils.shareFiles(context, listOf(uri))
                                                 }
                                             )
+                                            if (name.endsWith(".pdf", true)) {
+                                                DropdownMenuItem(
+                                                    text = { Text("Delete Page(s)") },
+                                                    leadingIcon = { Icon(Icons.Default.PictureAsPdf, contentDescription = null) },
+                                                    onClick = {
+                                                        showItemMenu = false
+                                                        pdfDeleteTarget = Pair(name, uri)
+                                                        pdfDeleteText = ""
+                                                        showPdfDeleteDialog = true
+                                                    }
+                                                )
+                                                DropdownMenuItem(
+                                                    text = { Text("Split PDF") },
+                                                    leadingIcon = { Icon(Icons.Default.CallSplit, contentDescription = null) },
+                                                    onClick = {
+                                                        showItemMenu = false
+                                                        pdfSplitTarget = Pair(name, uri)
+                                                        pdfSplitOption = 0
+                                                        pdfSplitAtPageText = ""
+                                                        showPdfSplitDialog = true
+                                                    }
+                                                )
+                                                DropdownMenuItem(
+                                                    text = { Text("Convert to JPG") },
+                                                    leadingIcon = { Icon(Icons.Default.Image, contentDescription = null) },
+                                                    onClick = {
+                                                        showItemMenu = false
+                                                        viewModel.convertPdfToJpg(context, uri, currentSubfolder?.second)
+                                                        refreshCurrentView()
+                                                    }
+                                                )
+                                            } else if (name.endsWith(".jpg", true) || name.endsWith(".jpeg", true) || name.endsWith(".png", true)) {
+                                                DropdownMenuItem(
+                                                    text = { Text("Convert to PDF") },
+                                                    leadingIcon = { Icon(Icons.Default.PictureAsPdf, contentDescription = null) },
+                                                    onClick = {
+                                                        showItemMenu = false
+                                                        viewModel.convertImageToPdf(context, uri, currentSubfolder?.second) { refreshCurrentView() }
+                                                    }
+                                                )
+                                            }
                                             DropdownMenuItem(
                                                 text = { Text("Rename") },
                                                 leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
@@ -539,8 +595,7 @@ fun FileCleanupScreen(
                                                 leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
                                                 onClick = {
                                                     showItemMenu = false
-                                                    viewModel.deleteCleanupFiles(context, listOf(uri), selectedTab != 1)
-                                                    refreshCurrentView()
+                                                    viewModel.deleteCleanupFiles(context, listOf(uri), selectedTab != 1) { refreshCurrentView() }
                                                 }
                                             )
                                         }
@@ -642,7 +697,7 @@ fun FileCleanupScreen(
 
                                     if (selectedCount == 1) {
                                         val targetUri = checkedUris.first()
-                                        val targetName = rawCurrentFiles.firstOrNull { it.second == targetUri }?.first ?: ""
+                                        val targetName = rawCurrentFiles.firstOrNull { it.uri == targetUri }?.name ?: ""
                                         OutlinedButton(
                                             onClick = {
                                                 renameTarget = Pair(targetName, targetUri)
@@ -663,8 +718,7 @@ fun FileCleanupScreen(
 
                                     Button(
                                         onClick = {
-                                            viewModel.deleteCleanupFiles(context, checkedUris, selectedTab != 1)
-                                            refreshCurrentView()
+                                            viewModel.deleteCleanupFiles(context, checkedUris, selectedTab != 1) { refreshCurrentView() }
                                         },
                                         modifier = Modifier
                                             .weight(1f)
@@ -676,6 +730,25 @@ fun FileCleanupScreen(
                                         Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(15.dp))
                                         Spacer(modifier = Modifier.width(4.dp))
                                         Text("Delete", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                    
+                                    if (selectedCount > 0) {
+                                        Button(
+                                            onClick = {
+                                                zipFileNameText = "archive_${System.currentTimeMillis()}"
+                                                showZipDialog = true
+                                            },
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .height(36.dp),
+                                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary),
+                                            shape = RoundedCornerShape(6.dp),
+                                            contentPadding = PaddingValues(horizontal = 4.dp)
+                                        ) {
+                                            Icon(Icons.Default.Archive, contentDescription = null, modifier = Modifier.size(15.dp))
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text("Zip", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        }
                                     }
                                 }
                             }
@@ -708,8 +781,7 @@ fun FileCleanupScreen(
                         onClick = {
                             val target = renameTarget
                             if (target != null && renameText.isNotBlank()) {
-                                viewModel.renameCleanupFile(context, target.second, renameText.trim())
-                                refreshCurrentView()
+                                viewModel.renameCleanupFile(context, target.second, renameText.trim()) { refreshCurrentView() }
                             }
                             showRenameDialog = false
                         }
@@ -719,6 +791,149 @@ fun FileCleanupScreen(
                 },
                 dismissButton = {
                     TextButton(onClick = { showRenameDialog = false }) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
+
+        // PDF Delete Pages Dialog
+        if (showPdfDeleteDialog && pdfDeleteTarget != null) {
+            AlertDialog(
+                onDismissRequest = { showPdfDeleteDialog = false },
+                title = { Text("Delete PDF Page(s)", fontWeight = FontWeight.Bold) },
+                text = {
+                    Column {
+                        Text("Enter page numbers to delete (e.g. '1', '1,3', '2-4'):", style = MaterialTheme.typography.bodySmall)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = pdfDeleteText,
+                            onValueChange = { pdfDeleteText = it },
+                            label = { Text("Pages") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            val target = pdfDeleteTarget
+                            if (target != null && pdfDeleteText.isNotBlank()) {
+                                viewModel.deletePdfPages(context, target.second, pdfDeleteText.trim()) { refreshCurrentView() }
+                            }
+                            showPdfDeleteDialog = false
+                        }
+                    ) {
+                        Text("Delete")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showPdfDeleteDialog = false }) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
+
+        if (showPdfSplitDialog && pdfSplitTarget != null) {
+            AlertDialog(
+                onDismissRequest = { showPdfSplitDialog = false },
+                title = { Text("Split PDF: ${pdfSplitTarget?.first}") },
+                text = {
+                    Column {
+                        Text("How would you like to split this PDF?", style = MaterialTheme.typography.bodyMedium)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            RadioButton(
+                                selected = pdfSplitOption == 0,
+                                onClick = { pdfSplitOption = 0 }
+                            )
+                            Text("Split into individual pages")
+                        }
+                        
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            RadioButton(
+                                selected = pdfSplitOption == 1,
+                                onClick = { pdfSplitOption = 1 }
+                            )
+                            Text("Split at specific page")
+                        }
+                        
+                        if (pdfSplitOption == 1) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            OutlinedTextField(
+                                value = pdfSplitAtPageText,
+                                onValueChange = { pdfSplitAtPageText = it },
+                                label = { Text("Page Number (e.g. 3)") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            val target = pdfSplitTarget
+                            if (target != null) {
+                                viewModel.splitPdf(
+                                    context = context,
+                                    uri = target.second,
+                                    option = pdfSplitOption,
+                                    splitAtPage = pdfSplitAtPageText.trim(),
+                                    parentUri = currentSubfolder?.second
+                                ) { refreshCurrentView() }
+                            }
+                            showPdfSplitDialog = false
+                        },
+                        enabled = pdfSplitOption == 0 || (pdfSplitOption == 1 && pdfSplitAtPageText.isNotBlank())
+                    ) {
+                        Text("Split")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showPdfSplitDialog = false }) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
+        if (showZipDialog) {
+            AlertDialog(
+                onDismissRequest = { showZipDialog = false },
+                title = { Text("Create ZIP Archive", fontWeight = FontWeight.Bold) },
+                text = {
+                    Column {
+                        Text("Enter name for the new ZIP file:", style = MaterialTheme.typography.bodySmall)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = zipFileNameText,
+                            onValueChange = { zipFileNameText = it },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            if (zipFileNameText.isNotBlank()) {
+                                val urisToZip = selectedUris.filter { it.value }.keys.toList()
+                                viewModel.createZipFromUris(context, urisToZip, zipFileNameText.trim(), currentSubfolder?.second) {
+                                    refreshCurrentView()
+                                    selectedUris.clear()
+                                }
+                            }
+                            showZipDialog = false
+                        }
+                    ) {
+                        Text("Create")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showZipDialog = false }) {
                         Text("Cancel")
                     }
                 }

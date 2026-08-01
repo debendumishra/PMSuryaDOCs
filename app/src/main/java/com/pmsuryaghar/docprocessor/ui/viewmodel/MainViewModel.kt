@@ -30,6 +30,7 @@ enum class ProcessingState {
     EXTRACTING_DETAILS,
     FOLDER_REVIEW,
     SAVING_FILES,
+    AWAITING_CONFIRMATION,
     COMPLETED,
     ERROR
 }
@@ -54,16 +55,33 @@ class MainViewModel @Inject constructor(
 
     private val _generatedFiles = MutableStateFlow<List<File>>(emptyList())
     val generatedFiles: StateFlow<List<File>> = _generatedFiles
+    
+    private val _pagePreviews = MutableStateFlow<List<Uri>>(emptyList())
+    val pagePreviews: StateFlow<List<Uri>> = _pagePreviews
 
     private val _settings = MutableStateFlow(AppSettings())
     val settings: StateFlow<AppSettings> = _settings
 
-    // Folder review fields
     private val _detectedName = MutableStateFlow("")
     val detectedName: StateFlow<String> = _detectedName
 
     private val _detectedMobile = MutableStateFlow("")
     val detectedMobile: StateFlow<String> = _detectedMobile
+
+    private val _detectedConsumerNo = MutableStateFlow("")
+    val detectedConsumerNo: StateFlow<String> = _detectedConsumerNo
+
+    private val _pendingExtractedInfo = MutableStateFlow<com.pmsuryaghar.docprocessor.data.util.GeminiResponseExtractor.ExtractedInfo?>(null)
+    val pendingExtractedInfo: StateFlow<com.pmsuryaghar.docprocessor.data.util.GeminiResponseExtractor.ExtractedInfo?> = _pendingExtractedInfo
+
+    fun setAppUnlocked() {
+        viewModelScope.launch {
+            val updatedSettings = _settings.value.copy(isAppUnlocked = true)
+            settingsRepository.updateSettings(updatedSettings)
+        }
+    }
+
+    // Folder review fields
 
     private val _rawGeminiResponse = MutableStateFlow("")
     val rawGeminiResponse: StateFlow<String> = _rawGeminiResponse
@@ -117,8 +135,7 @@ class MainViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 if (_isBatchProcessed.value) {
-                    setError("Current document batch has already been processed. Please tap the Reset button on the dashboard to start a new batch.")
-                    return@launch
+                    resetState(context)
                 }
 
                 val appSettings = _settings.value
@@ -139,7 +156,7 @@ class MainViewModel @Inject constructor(
                     _statusText.value = "Reading WhatsApp Files..."
                     val scannedFromFolder = processingRepository.scanNewDocuments(
                         appSettings.sourceFolderUri,
-                        appSettings.lastProcessingTimestamp
+                        0L // Ignore last processing timestamp to send all files available in source folder
                     )
                     if (scannedFromFolder.isEmpty()) {
                         setError("No new documents found in the configured WhatsApp folder since the last processing run.")
@@ -171,7 +188,13 @@ class MainViewModel @Inject constructor(
                 _processingState.value = ProcessingState.LAUNCHING_GEMINI
                 _statusText.value = "Preparing $agent Request..."
                 
-                IntentManager.launchAiAgent(context, agent, appSettings.defaultGeminiPrompt, listOf(combinedFile))
+                val pageCount = PdfHelper.getPageCount(combinedFile)
+                val finalPrompt = if (pageCount > 0) {
+                    "${appSettings.defaultGeminiPrompt}\n\nThe uploaded file has $pageCount pages."
+                } else {
+                    appSettings.defaultGeminiPrompt
+                }
+                IntentManager.launchAiAgent(context, agent, finalPrompt, listOf(combinedFile))
                 
                 // Go to waiting state
                 _processingState.value = ProcessingState.WAITING_GEMINI
@@ -183,26 +206,51 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    fun onGeminiResponseReceived(responseText: String) {
+    fun onGeminiResponseReceived(context: Context, responseText: String) {
         if (responseText.isEmpty()) return
         
         viewModelScope.launch {
             _processingState.value = ProcessingState.EXTRACTING_DETAILS
-            _statusText.value = "Extracting Customer Details..."
-            
+            _statusText.value = "Extracting customer details..."
+
             _rawGeminiResponse.value = responseText
-            val extracted = GeminiResponseExtractor.extract(responseText)
+            val extracted = com.pmsuryaghar.docprocessor.data.util.GeminiResponseExtractor.extract(responseText)
             
             _detectedName.value = extracted.customerName.ifEmpty { "UNKNOWN_CUSTOMER" }
             _detectedMobile.value = extracted.mobileNumber.ifEmpty { "0000000000" }
+            _detectedConsumerNo.value = extracted.electricityConsumerNo
+            
             _proposedFolderName.value = "${_detectedName.value}_${_detectedMobile.value}"
             
-            // Populate negative remarks and missing documents for dashboard display
-            _negativeRemarks.value = extracted.negativeRemarks
-            _missingDocuments.value = extracted.missingDocuments
+            _pendingExtractedInfo.value = extracted
             
+            // Extract page previews from All_Documents.pdf
+            _statusText.value = "Generating page previews..."
+            val combinedFile = File(context.cacheDir, "All_Documents.pdf")
+            if (combinedFile.exists()) {
+                val previewUris = com.pmsuryaghar.docprocessor.data.util.PdfHelper.renderAllPagesToImages(combinedFile, context.cacheDir)
+                _pagePreviews.value = previewUris
+            } else {
+                _pagePreviews.value = emptyList()
+            }
+            
+            _processingState.value = ProcessingState.AWAITING_CONFIRMATION
+            _statusText.value = "Awaiting Document Mapping Confirmation..."
+        }
+    }
+
+    fun confirmAndProcessDocuments(confirmedMapping: Map<Int, String>) {
+        val extracted = _pendingExtractedInfo.value ?: return
+        
+        viewModelScope.launch {
+            // Update the pending info with confirmed mapping
+            _pendingExtractedInfo.value = extracted.copy(documentMapping = confirmedMapping)
+            
+            // Move to FOLDER_REVIEW state where user confirms name/mobile/folder
             _processingState.value = ProcessingState.FOLDER_REVIEW
             _statusText.value = "Review proposed customer output folder"
+            
+            // Note: we'll use pendingExtractedInfo.value in saveAndShare instead of re-parsing
         }
     }
 
@@ -229,8 +277,7 @@ class MainViewModel @Inject constructor(
                 val baseOutput = _selectedOutputLocationUri.value
                 
                 val combinedFile = File(context.cacheDir, "All_Documents.pdf")
-                val extractedInfo = GeminiResponseExtractor.extract(_rawGeminiResponse.value)
-                val documentMapping = extractedInfo.documentMapping
+                val documentMapping = _pendingExtractedInfo.value?.documentMapping ?: GeminiResponseExtractor.extract(_rawGeminiResponse.value).documentMapping
 
                 var pdfFiles = _generatedFiles.value
                 if (pdfFiles.isEmpty()) {
@@ -309,13 +356,8 @@ class MainViewModel @Inject constructor(
                 // Update settings last successful processing timestamp
                 settingsRepository.updateLastProcessingTimestamp(timestamp)
 
-                _statusText.value = "Opening WhatsApp..."
-                IntentManager.shareZipToWhatsApp(
-                    context = context,
-                    zipFile = zipFile,
-                    customerName = _detectedName.value,
-                    destinationNumber = appSettings.destinationWhatsAppNumber
-                )
+                // WhatsApp sharing has been intentionally disabled as requested
+                // IntentManager.shareZipToWhatsApp(...)
 
                 _processingState.value = ProcessingState.COMPLETED
                 _statusText.value = "Completed!"
@@ -379,15 +421,83 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    fun renameCleanupFile(context: Context, uri: Uri, newName: String) {
+    fun renameCleanupFile(context: Context, uri: Uri, newName: String, onComplete: () -> Unit = {}) {
         viewModelScope.launch {
             try {
-                val fileDoc = androidx.documentfile.provider.DocumentFile.fromSingleUri(context, uri)
-                fileDoc?.renameTo(newName)
+                // Ensure extension is retained
+                val currentName = androidx.documentfile.provider.DocumentFile.fromSingleUri(context, uri)?.name ?: ""
+                val extension = if (currentName.contains(".")) currentName.substringAfterLast(".") else ""
+                val finalName = if (extension.isNotEmpty() && !newName.endsWith(".$extension", true)) {
+                    "$newName.$extension"
+                } else {
+                    newName
+                }
+                
+                android.provider.DocumentsContract.renameDocument(context.contentResolver, uri, finalName)
                 loadCleanupFiles(context)
                 refreshExistingFiles(context)
             } catch (e: Exception) {
                 Timber.e(e, "Error renaming cleanup file")
+            } finally {
+                onComplete()
+            }
+        }
+    }
+
+    fun deletePdfPages(context: Context, uri: Uri, pagesInput: String, onComplete: () -> Unit = {}) {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                val pagesToDelete = mutableSetOf<Int>()
+                pagesInput.split(",").forEach { part ->
+                    val p = part.trim()
+                    if (p.contains("-")) {
+                        val range = p.split("-")
+                        if (range.size == 2) {
+                            val start = range[0].toIntOrNull()
+                            val end = range[1].toIntOrNull()
+                            if (start != null && end != null) {
+                                for (i in start..end) {
+                                    pagesToDelete.add(i - 1) // 0-indexed
+                                }
+                            }
+                        }
+                    } else {
+                        val pageNum = p.toIntOrNull()
+                        if (pageNum != null) {
+                            pagesToDelete.add(pageNum - 1)
+                        }
+                    }
+                }
+
+                if (pagesToDelete.isEmpty()) {
+                    withContext(Dispatchers.Main) { onComplete() }
+                    return@launch
+                }
+
+                val document = context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                    com.tom_roush.pdfbox.pdmodel.PDDocument.load(inputStream)
+                } ?: run {
+                    withContext(Dispatchers.Main) { onComplete() }
+                    return@launch
+                }
+
+                val sortedPages = pagesToDelete.sortedDescending()
+                for (pageIndex in sortedPages) {
+                    if (pageIndex in 0 until document.numberOfPages) {
+                        document.removePage(pageIndex)
+                    }
+                }
+
+                context.contentResolver.openOutputStream(uri, "wt")?.use { outputStream ->
+                    document.save(outputStream)
+                }
+                document.close()
+                
+                loadCleanupFiles(context)
+            } catch (e: Exception) {
+                Timber.e(e, "Error deleting PDF pages")
+            } finally {
+                withContext(Dispatchers.Main) { onComplete() }
             }
         }
     }
@@ -480,97 +590,111 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    private val _cleanupWhatsappMediaFiles = MutableStateFlow<List<Triple<String, Uri, Boolean>>>(emptyList())
-    val cleanupWhatsappMediaFiles: StateFlow<List<Triple<String, Uri, Boolean>>> = _cleanupWhatsappMediaFiles.asStateFlow()
+    private val _cleanupSourceFiles = MutableStateFlow<List<FileItemData>>(emptyList())
+    val cleanupSourceFiles: StateFlow<List<FileItemData>> = _cleanupSourceFiles.asStateFlow()
 
-    private val _cleanupSourceFiles = MutableStateFlow<List<Triple<String, Uri, Boolean>>>(emptyList())
-    val cleanupSourceFiles: StateFlow<List<Triple<String, Uri, Boolean>>> = _cleanupSourceFiles.asStateFlow()
+    private val _cleanupDestFiles = MutableStateFlow<List<FileItemData>>(emptyList())
+    val cleanupDestFiles: StateFlow<List<FileItemData>> = _cleanupDestFiles.asStateFlow()
 
-    private val _cleanupDestFiles = MutableStateFlow<List<Triple<String, Uri, Boolean>>>(emptyList())
-    val cleanupDestFiles: StateFlow<List<Triple<String, Uri, Boolean>>> = _cleanupDestFiles.asStateFlow()
+    private val _cleanupWhatsappMediaFiles = MutableStateFlow<List<FileItemData>>(emptyList())
+    val cleanupWhatsappMediaFiles: StateFlow<List<FileItemData>> = _cleanupWhatsappMediaFiles.asStateFlow()
+
+    private val _isCleanupLoading = MutableStateFlow(false)
+    val isCleanupLoading: StateFlow<Boolean> = _isCleanupLoading.asStateFlow()
 
     fun loadCleanupFiles(context: Context) {
         viewModelScope.launch {
-            // Always read fresh settings from repository to avoid stale _settings.value crash
-            val currentSettings = try {
-                settingsRepository.getSettings().first()
-            } catch (e: Exception) {
-                Timber.e(e, "Error reading settings in loadCleanupFiles")
-                return@launch
-            }
+            _isCleanupLoading.value = true
+            try {
+                withContext(Dispatchers.IO) {
+                    // Always read fresh settings from repository to avoid stale _settings.value crash
+                    val currentSettings = try {
+                        settingsRepository.getSettings().first()
+                    } catch (e: Exception) {
+                        Timber.e(e, "Error reading settings in loadCleanupFiles")
+                        return@withContext
+                    }
 
-            // Calculate 2-day cutoff (today + yesterday) in milliseconds
-            val twoDaysAgoMs = System.currentTimeMillis() - (2L * 24L * 60L * 60L * 1000L)
+                    // Calculate 2-day cutoff (today + yesterday) in milliseconds
+                    val twoDaysAgoMs = System.currentTimeMillis() - (2L * 24L * 60L * 60L * 1000L)
 
-            // 1. Source Folder (SAF tree uri) - show ALL files
-            val sourceUriStr = currentSettings.sourceFolderUri
-            if (sourceUriStr.isNotEmpty()) {
-                try {
-                    val rootDoc = androidx.documentfile.provider.DocumentFile.fromTreeUri(context, Uri.parse(sourceUriStr))
-                    if (rootDoc != null && rootDoc.isDirectory) {
-                        _cleanupSourceFiles.value = rootDoc.listFiles()
-                            .filter { it.name != null }
-                            .sortedByDescending { it.lastModified() }
-                            .map { Triple(it.name!!, it.uri, it.isDirectory) }
+                    // 1. Source Folder (SAF tree uri) - show ALL files
+                    val sourceUriStr = currentSettings.sourceFolderUri
+                    if (sourceUriStr.isNotEmpty()) {
+                        try {
+                            val rootDoc = androidx.documentfile.provider.DocumentFile.fromTreeUri(context, Uri.parse(sourceUriStr))
+                            if (rootDoc != null && rootDoc.isDirectory) {
+                                _cleanupSourceFiles.value = rootDoc.listFiles()
+                                    .filter { it.name != null }
+                                    .sortedByDescending { it.lastModified() }
+                                    .map { FileItemData(it.name!!, it.uri, it.isDirectory, it.length(), it.lastModified()) }
+                            } else {
+                                _cleanupSourceFiles.value = emptyList()
+                            }
+                        } catch (e: Exception) {
+                            Timber.e(e, "Error reading source cleanup files")
+                            _cleanupSourceFiles.value = emptyList()
+                        }
                     } else {
                         _cleanupSourceFiles.value = emptyList()
                     }
-                } catch (e: Exception) {
-                    Timber.e(e, "Error reading source cleanup files")
-                    _cleanupSourceFiles.value = emptyList()
-                }
-            } else {
-                _cleanupSourceFiles.value = emptyList()
-            }
 
-            // 2. Destination Folder (SAF tree uri) - show ALL files/sub-folders
-            val destUriStr = _selectedOutputLocationUri.value.ifEmpty {
-                currentSettings.defaultOutputFolderUri
-            }
-            if (destUriStr.isNotEmpty()) {
-                try {
-                    val rootDoc = androidx.documentfile.provider.DocumentFile.fromTreeUri(context, Uri.parse(destUriStr))
-                    if (rootDoc != null && rootDoc.isDirectory) {
-                        _cleanupDestFiles.value = rootDoc.listFiles()
-                            .filter { it.name != null }
-                            .sortedByDescending { it.lastModified() }
-                            .map { Triple(it.name!!, it.uri, it.isDirectory) }
+                    // 2. Destination Folder (SAF tree uri) - show ALL files/sub-folders
+                    val destUriStr = _selectedOutputLocationUri.value.ifEmpty {
+                        currentSettings.defaultOutputFolderUri
+                    }
+                    if (destUriStr.isNotEmpty()) {
+                        try {
+                            val rootDoc = androidx.documentfile.provider.DocumentFile.fromTreeUri(context, Uri.parse(destUriStr))
+                            if (rootDoc != null && rootDoc.isDirectory) {
+                                _cleanupDestFiles.value = rootDoc.listFiles()
+                                    .filter { it.name != null }
+                                    .sortedByDescending { it.lastModified() }
+                                    .map { FileItemData(it.name!!, it.uri, it.isDirectory, it.length(), it.lastModified()) }
+                            } else {
+                                _cleanupDestFiles.value = emptyList()
+                            }
+                        } catch (e: Exception) {
+                            Timber.e(e, "Error reading destination cleanup files")
+                            _cleanupDestFiles.value = emptyList()
+                        }
                     } else {
                         _cleanupDestFiles.value = emptyList()
                     }
-                } catch (e: Exception) {
-                    Timber.e(e, "Error reading destination cleanup files")
-                    _cleanupDestFiles.value = emptyList()
-                }
-            } else {
-                _cleanupDestFiles.value = emptyList()
-            }
 
-            // 3. Custom WhatsApp Media Folder - show files sorted datetime descending
-            val configuredMediaUriStr = currentSettings.whatsappMediaFolderUri
-            if (configuredMediaUriStr.isNotEmpty()) {
-                try {
-                    val rootDoc = androidx.documentfile.provider.DocumentFile.fromTreeUri(context, Uri.parse(configuredMediaUriStr))
-                    if (rootDoc != null && rootDoc.isDirectory) {
-                        _cleanupWhatsappMediaFiles.value = rootDoc.listFiles()
-                            .filter { it.name != null }
-                            .sortedByDescending { it.lastModified() }
-                            .map { Triple(it.name!!, it.uri, it.isDirectory) }
+                    // 3. Custom WhatsApp Media Folder - show files sorted datetime descending
+                    val configuredMediaUriStr = currentSettings.whatsappMediaFolderUri
+                    if (configuredMediaUriStr.isNotEmpty()) {
+                        try {
+                            val rootDoc = androidx.documentfile.provider.DocumentFile.fromTreeUri(context, Uri.parse(configuredMediaUriStr))
+                            if (rootDoc != null && rootDoc.isDirectory) {
+                                _cleanupWhatsappMediaFiles.value = rootDoc.listFiles()
+                                    .filter { it.name != null }
+                                    .sortedByDescending { it.lastModified() }
+                                    .map { FileItemData(it.name!!, it.uri, it.isDirectory, it.length(), it.lastModified()) }
+                            } else {
+                                _cleanupWhatsappMediaFiles.value = emptyList()
+                            }
+                        } catch (e: Exception) {
+                            Timber.e(e, "Error reading configured WA Media folder")
+                            _cleanupWhatsappMediaFiles.value = emptyList()
+                        }
                     } else {
-                        _cleanupWhatsappMediaFiles.value = emptyList()
+                        // Fallback: scan actual system WhatsApp Documents + Images paths, filter last 2 days, sort descending
+                        val actualDocs = FileUtils.scanActualWhatsappFolder(context, isDocumentFolder = true)
+                        val actualImages = FileUtils.scanActualWhatsappFolder(context, isDocumentFolder = false)
+                        val combined = (actualDocs + actualImages)
+                            .filter { it.lastModified >= twoDaysAgoMs }
+                            .sortedByDescending { it.lastModified }
+                            .map { 
+                                val size = try { java.io.File(it.uri.path ?: "").length() } catch(e: Exception) { 0L }
+                                FileItemData(it.name, it.uri, false, size, it.lastModified) 
+                            }
+                        _cleanupWhatsappMediaFiles.value = combined
                     }
-                } catch (e: Exception) {
-                    Timber.e(e, "Error reading configured WA Media folder")
-                    _cleanupWhatsappMediaFiles.value = emptyList()
                 }
-            } else {
-                // Fallback: scan actual system WhatsApp Documents + Images paths, filter last 2 days, sort descending
-                val actualDocs = FileUtils.scanActualWhatsappFolder(context, isDocumentFolder = true)
-                val actualImages = FileUtils.scanActualWhatsappFolder(context, isDocumentFolder = false)
-                val combined = (actualDocs + actualImages)
-                    .filter { it.lastModified >= twoDaysAgoMs }
-                    .sortedByDescending { it.lastModified }
-                _cleanupWhatsappMediaFiles.value = combined.map { Triple(it.name, it.uri, false) }
+            } finally {
+                _isCleanupLoading.value = false
             }
         }
     }
@@ -608,7 +732,7 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    fun deleteCleanupFiles(context: Context, uris: List<Uri>, isSource: Boolean) {
+    fun deleteCleanupFiles(context: Context, uris: List<Uri>, isSource: Boolean, onComplete: () -> Unit = {}) {
         viewModelScope.launch {
             try {
                 for (uri in uris) {
@@ -619,6 +743,8 @@ class MainViewModel @Inject constructor(
                 refreshExistingFiles(context)
             } catch (e: Exception) {
                 Timber.e(e, "Error deleting cleanup files")
+            } finally {
+                onComplete()
             }
         }
     }
@@ -701,20 +827,248 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    fun loadFolderContents(context: Context, folderUri: Uri): List<Triple<String, Uri, Boolean>> {
-        return try {
-            val rootDoc = androidx.documentfile.provider.DocumentFile.fromTreeUri(context, folderUri)
-                ?: androidx.documentfile.provider.DocumentFile.fromSingleUri(context, folderUri)
-            if (rootDoc != null && rootDoc.isDirectory) {
-                rootDoc.listFiles()
-                    .filter { it.name != null }
-                    .map { Triple(it.name!!, it.uri, it.isDirectory) }
-            } else {
+    suspend fun loadFolderContents(context: Context, folderUri: Uri): List<FileItemData> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val rootDoc = androidx.documentfile.provider.DocumentFile.fromTreeUri(context, folderUri)
+                    ?: androidx.documentfile.provider.DocumentFile.fromSingleUri(context, folderUri)
+                if (rootDoc != null && rootDoc.isDirectory) {
+                    rootDoc.listFiles()
+                        .filter { it.name != null }
+                        .map { FileItemData(it.name!!, it.uri, it.isDirectory, it.length(), it.lastModified()) }
+                } else {
+                    emptyList()
+                }
+            } catch (e: Exception) {
+                Timber.e(e, "Error loading subfolder contents")
                 emptyList()
             }
-        } catch (e: Exception) {
-            Timber.e(e, "Error loading subfolder contents")
-            emptyList()
+        }
+    }
+
+    private fun getDestinationFolder(context: Context, uri: Uri): androidx.documentfile.provider.DocumentFile? {
+        val path = java.net.URLDecoder.decode(uri.toString(), "UTF-8")
+        val sourceTree = settings.value.sourceFolderUri
+        val destTree = settings.value.defaultOutputFolderUri
+        val waTree = settings.value.whatsappMediaFolderUri
+        
+        val treeToUse = when {
+            sourceTree.isNotBlank() && path.contains(Uri.parse(sourceTree).lastPathSegment ?: "///") -> sourceTree
+            destTree.isNotBlank() && path.contains(Uri.parse(destTree).lastPathSegment ?: "///") -> destTree
+            waTree.isNotBlank() && path.contains(Uri.parse(waTree).lastPathSegment ?: "///") -> waTree
+            else -> if (sourceTree.isNotBlank()) sourceTree else destTree
+        }
+        
+        return if (treeToUse.isNotBlank()) {
+            androidx.documentfile.provider.DocumentFile.fromTreeUri(context, Uri.parse(treeToUse))
+        } else {
+            null
+        }
+    }
+
+    fun splitPdf(context: Context, uri: Uri, option: Int, splitAtPage: String, parentUri: Uri?, onComplete: () -> Unit = {}) {
+        viewModelScope.launch(Dispatchers.IO) {
+            _isCleanupLoading.value = true
+            try {
+                val document = context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                    com.tom_roush.pdfbox.pdmodel.PDDocument.load(inputStream)
+                }
+                
+                if (document != null) {
+                    val splitter = com.tom_roush.pdfbox.multipdf.Splitter()
+                    if (option == 1) {
+                        val pageNum = splitAtPage.toIntOrNull()
+                        if (pageNum != null && pageNum > 0 && pageNum < document.numberOfPages) {
+                            splitter.setSplitAtPage(pageNum)
+                        } else {
+                            document.close()
+                            _isCleanupLoading.value = false
+                            withContext(Dispatchers.Main) { onComplete() }
+                            return@launch
+                        }
+                    }
+                    
+                    val splitDocuments = splitter.split(document)
+                    val originalDocFile = androidx.documentfile.provider.DocumentFile.fromSingleUri(context, uri)
+                    val parentFolder = if (parentUri != null) {
+                        androidx.documentfile.provider.DocumentFile.fromTreeUri(context, parentUri) ?: getDestinationFolder(context, uri)
+                    } else {
+                        getDestinationFolder(context, uri)
+                    }
+                    
+                    val originalName = originalDocFile?.name?.substringBeforeLast(".") ?: "document"
+                    
+                    if (parentFolder != null) {
+                        splitDocuments.forEachIndexed { index, splitDoc ->
+                            val partName = "${originalName}_part${index + 1}.pdf"
+                            val newFile = parentFolder.createFile("application/pdf", partName)
+                            if (newFile != null) {
+                                context.contentResolver.openOutputStream(newFile.uri)?.use { outputStream ->
+                                    splitDoc.save(outputStream)
+                                }
+                            }
+                            splitDoc.close()
+                        }
+                    }
+                    document.close()
+                }
+            } catch (e: Exception) {
+                Timber.e(e, "Error splitting PDF")
+            } finally {
+                _isCleanupLoading.value = false
+                loadCleanupFiles(context)
+                withContext(Dispatchers.Main) { onComplete() }
+            }
+        }
+    }
+
+    fun convertPdfToJpg(context: Context, uri: Uri, parentUri: Uri?, onComplete: () -> Unit = {}) {
+        viewModelScope.launch(Dispatchers.IO) {
+            _isCleanupLoading.value = true
+            try {
+                val document = context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                    com.tom_roush.pdfbox.pdmodel.PDDocument.load(inputStream)
+                }
+                if (document != null) {
+                    val renderer = com.tom_roush.pdfbox.rendering.PDFRenderer(document)
+                    val originalDocFile = androidx.documentfile.provider.DocumentFile.fromSingleUri(context, uri)
+                    val parentFolder = if (parentUri != null) {
+                        androidx.documentfile.provider.DocumentFile.fromTreeUri(context, parentUri) ?: getDestinationFolder(context, uri)
+                    } else {
+                        getDestinationFolder(context, uri)
+                    }
+                    
+                    val originalName = originalDocFile?.name?.substringBeforeLast(".") ?: "document"
+                    
+                    if (parentFolder != null) {
+                        for (i in 0 until document.numberOfPages) {
+                            val bitmap = renderer.renderImageWithDPI(i, 300f, com.tom_roush.pdfbox.rendering.ImageType.RGB)
+                            val partName = "${originalName}_page${i + 1}.jpg"
+                            val newFile = parentFolder.createFile("image/jpeg", partName)
+                            if (newFile != null) {
+                                context.contentResolver.openOutputStream(newFile.uri)?.use { outputStream ->
+                                    bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 90, outputStream)
+                                }
+                            }
+                        }
+                    }
+                    document.close()
+                }
+            } catch (e: Exception) {
+                Timber.e(e, "Error converting PDF to JPG")
+            } finally {
+                _isCleanupLoading.value = false
+                loadCleanupFiles(context)
+                withContext(Dispatchers.Main) { onComplete() }
+            }
+        }
+    }
+
+    fun convertImageToPdf(context: Context, uri: Uri, parentUri: Uri?, onComplete: () -> Unit = {}) {
+        viewModelScope.launch(Dispatchers.IO) {
+            _isCleanupLoading.value = true
+            try {
+                val document = com.tom_roush.pdfbox.pdmodel.PDDocument()
+                val inputStream = context.contentResolver.openInputStream(uri)
+                if (inputStream != null) {
+                    val bitmap = android.graphics.BitmapFactory.decodeStream(inputStream)
+                    inputStream.close()
+                    
+                    if (bitmap != null) {
+                        val tempFile = File(context.cacheDir, "temp_img.jpg")
+                        tempFile.outputStream().use { os ->
+                            bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 90, os)
+                        }
+                        
+                        val pdImage = com.tom_roush.pdfbox.pdmodel.graphics.image.PDImageXObject.createFromFile(tempFile.absolutePath, document)
+                        val page = com.tom_roush.pdfbox.pdmodel.PDPage(com.tom_roush.pdfbox.pdmodel.common.PDRectangle(pdImage.width.toFloat(), pdImage.height.toFloat()))
+                        document.addPage(page)
+                        
+                        val contentStream = com.tom_roush.pdfbox.pdmodel.PDPageContentStream(document, page)
+                        contentStream.drawImage(pdImage, 0f, 0f)
+                        contentStream.close()
+                        
+                        val originalDocFile = androidx.documentfile.provider.DocumentFile.fromSingleUri(context, uri)
+                        val parentFolder = if (parentUri != null) {
+                            androidx.documentfile.provider.DocumentFile.fromTreeUri(context, parentUri) ?: getDestinationFolder(context, uri)
+                        } else {
+                            getDestinationFolder(context, uri)
+                        }
+                        
+                        val originalName = originalDocFile?.name?.substringBeforeLast(".") ?: "document"
+                        val partName = "${originalName}_converted.pdf"
+                        
+                        if (parentFolder != null) {
+                            val newFile = parentFolder.createFile("application/pdf", partName)
+                            if (newFile != null) {
+                                context.contentResolver.openOutputStream(newFile.uri)?.use { outputStream ->
+                                    document.save(outputStream)
+                                }
+                            }
+                        }
+                        tempFile.delete()
+                    }
+                }
+                document.close()
+            } catch (e: Exception) {
+                Timber.e(e, "Error converting Image to PDF")
+            } finally {
+                _isCleanupLoading.value = false
+                loadCleanupFiles(context)
+                withContext(Dispatchers.Main) { onComplete() }
+            }
+        }
+    }
+
+    fun createZipFromUris(context: Context, uris: List<Uri>, zipFileName: String, parentFolderUri: Uri?, onComplete: () -> Unit = {}) {
+        viewModelScope.launch(Dispatchers.IO) {
+            _isCleanupLoading.value = true
+            try {
+                val finalFileName = if (zipFileName.endsWith(".zip", true)) zipFileName else "$zipFileName.zip"
+                
+                // 1. Create ZIP in local cache directory
+                val tempZip = java.io.File(context.cacheDir, "temp_${System.currentTimeMillis()}.zip")
+                java.util.zip.ZipOutputStream(java.io.FileOutputStream(tempZip)).use { zos ->
+                    for (uri in uris) {
+                        val doc = androidx.documentfile.provider.DocumentFile.fromSingleUri(context, uri)
+                        val entryName = doc?.name ?: "file_${System.currentTimeMillis()}"
+                        val entry = java.util.zip.ZipEntry(entryName)
+                        zos.putNextEntry(entry)
+                        context.contentResolver.openInputStream(uri)?.use { ins ->
+                            ins.copyTo(zos)
+                        }
+                        zos.closeEntry()
+                    }
+                }
+
+                // 2. Resolve destination SAF folder
+                val parentDoc = if (parentFolderUri != null) {
+                    androidx.documentfile.provider.DocumentFile.fromTreeUri(context, parentFolderUri)
+                } else if (uris.isNotEmpty()) {
+                    getDestinationFolder(context, uris.first())
+                } else null
+
+                // 3. Move ZIP to destination
+                if (parentDoc != null && parentDoc.isDirectory) {
+                    val zipDoc = parentDoc.createFile("application/zip", finalFileName)
+                    if (zipDoc != null) {
+                        context.contentResolver.openOutputStream(zipDoc.uri)?.use { os ->
+                            tempZip.inputStream().use { it.copyTo(os) }
+                        }
+                    }
+                }
+                
+                // Cleanup temp
+                if (tempZip.exists()) {
+                    tempZip.delete()
+                }
+            } catch (e: Exception) {
+                Timber.e(e, "Error creating ZIP file")
+            } finally {
+                _isCleanupLoading.value = false
+                loadCleanupFiles(context)
+                kotlinx.coroutines.withContext(Dispatchers.Main) { onComplete() }
+            }
         }
     }
 }

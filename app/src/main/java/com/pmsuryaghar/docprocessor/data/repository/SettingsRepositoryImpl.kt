@@ -34,6 +34,8 @@ class SettingsRepositoryImpl @Inject constructor(
         val ELECTRICITY_PORTAL_URL = stringPreferencesKey("electricity_portal_url")
         val LAND_RECORD_PORTAL_URL = stringPreferencesKey("land_record_portal_url")
         val WHATSAPP_MEDIA_FOLDER_URI = stringPreferencesKey("whatsapp_media_folder_uri")
+        val TPCODL_WHATSAPP_NUMBER = stringPreferencesKey("tpcodl_whatsapp_number")
+        val IS_APP_UNLOCKED = booleanPreferencesKey("is_app_unlocked")
     }
 
     override fun getSettings(): Flow<AppSettings> {
@@ -52,7 +54,9 @@ class SettingsRepositoryImpl @Inject constructor(
                 aadhaarPortalUrl = preferences[PreferencesKeys.AADHAAR_PORTAL_URL] ?: "https://tathya.uidai.gov.in/access/login?role=resident",
                 electricityPortalUrl = preferences[PreferencesKeys.ELECTRICITY_PORTAL_URL] ?: "https://mytatapowerplus.tatapower.com/#/offerings",
                 landRecordPortalUrl = preferences[PreferencesKeys.LAND_RECORD_PORTAL_URL] ?: "https://bhulekh.ori.nic.in/",
-                whatsappMediaFolderUri = preferences[PreferencesKeys.WHATSAPP_MEDIA_FOLDER_URI] ?: ""
+                whatsappMediaFolderUri = preferences[PreferencesKeys.WHATSAPP_MEDIA_FOLDER_URI] ?: "",
+                tpcodlWhatsappNumber = preferences[PreferencesKeys.TPCODL_WHATSAPP_NUMBER] ?: "",
+                isAppUnlocked = preferences[PreferencesKeys.IS_APP_UNLOCKED] ?: false
             )
         }
     }
@@ -73,6 +77,8 @@ class SettingsRepositoryImpl @Inject constructor(
             preferences[PreferencesKeys.ELECTRICITY_PORTAL_URL] = settings.electricityPortalUrl
             preferences[PreferencesKeys.LAND_RECORD_PORTAL_URL] = settings.landRecordPortalUrl
             preferences[PreferencesKeys.WHATSAPP_MEDIA_FOLDER_URI] = settings.whatsappMediaFolderUri
+            preferences[PreferencesKeys.TPCODL_WHATSAPP_NUMBER] = settings.tpcodlWhatsappNumber
+            preferences[PreferencesKeys.IS_APP_UNLOCKED] = settings.isAppUnlocked
         }
     }
 

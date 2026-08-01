@@ -13,6 +13,10 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -51,6 +55,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
+        com.tom_roush.pdfbox.android.PDFBoxResourceLoader.init(applicationContext)
+        
         checkAndRequestPermissions()
         handleIntent(intent)
 
@@ -73,8 +79,18 @@ class MainActivity : ComponentActivity() {
                 val navBackStackEntry by navController.currentBackStackEntryAsState()
                 val currentRoute = navBackStackEntry?.destination?.route
 
-                Scaffold(
-                    modifier = Modifier.fillMaxSize(),
+                val appSettings by mainViewModel.settings.collectAsState()
+                var isAppUnlockedSession by remember { mutableStateOf(false) }
+                val isAppUnlocked = appSettings.isAppUnlocked || isAppUnlockedSession
+
+                if (!isAppUnlocked) {
+                    LoginScreen(onUnlock = { 
+                        isAppUnlockedSession = true 
+                        mainViewModel.setAppUnlocked()
+                    })
+                } else {
+                    Scaffold(
+                        modifier = Modifier.fillMaxSize(),
                     bottomBar = {
                         NavigationBar(
                             containerColor = MaterialTheme.colorScheme.surfaceVariant
@@ -217,6 +233,7 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 }
+                }
             }
         }
     }
@@ -232,7 +249,7 @@ class MainActivity : ComponentActivity() {
                 if (intent.type == "text/plain") {
                     val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT) ?: ""
                     if (sharedText.isNotEmpty()) {
-                        mainViewModel.onGeminiResponseReceived(sharedText)
+                        mainViewModel.onGeminiResponseReceived(this, sharedText)
                     }
                 } else if (intent.type?.startsWith("image/") == true || intent.type == "application/pdf") {
                     val uri = intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM)

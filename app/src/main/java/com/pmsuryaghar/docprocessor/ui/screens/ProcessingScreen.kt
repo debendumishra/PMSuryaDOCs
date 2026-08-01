@@ -20,6 +20,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.pmsuryaghar.docprocessor.ui.viewmodel.MainViewModel
 import com.pmsuryaghar.docprocessor.ui.viewmodel.ProcessingState
+import coil.compose.AsyncImage
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.RoundedCornerShape
 
 @Composable
 fun ProcessingScreen(
@@ -33,6 +37,12 @@ fun ProcessingScreen(
     val context = LocalContext.current
     var pastedText by remember { mutableStateOf("") }
     val scrollState = rememberScrollState()
+    
+    val pendingExtractedInfo by viewModel.pendingExtractedInfo.collectAsState()
+    val pagePreviews by viewModel.pagePreviews.collectAsState()
+    var editedMapping by remember(pendingExtractedInfo) { 
+        mutableStateOf(pendingExtractedInfo?.documentMapping ?: emptyMap()) 
+    }
 
     // Monitor for transition to FOLDER_REVIEW state
     LaunchedEffect(processingState) {
@@ -154,13 +164,89 @@ fun ProcessingScreen(
                             Button(
                                 onClick = {
                                     if (pastedText.trim().isNotEmpty()) {
-                                        viewModel.onGeminiResponseReceived(pastedText)
+                                        viewModel.onGeminiResponseReceived(context, pastedText)
                                     }
                                 },
                                 enabled = pastedText.trim().isNotEmpty(),
                                 modifier = Modifier.weight(1f)
                             ) {
                                 Text("Parse Response")
+                            }
+                        }
+                    }
+
+                    ProcessingState.AWAITING_CONFIRMATION -> {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Text(
+                                    "Confirm Document Mapping", 
+                                    style = MaterialTheme.typography.titleMedium, 
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    "Please verify the document types for each page. Edit if necessary before generating PDFs.", 
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                
+                                Spacer(modifier = Modifier.height(16.dp))
+                                
+                                editedMapping.entries.sortedBy { it.key }.forEach { (pageNo, docType) ->
+                                    Card(
+                                        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth().padding(12.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            // Image Preview (Left half)
+                                            val imageUri = if (pageNo - 1 >= 0 && pageNo - 1 < pagePreviews.size) pagePreviews[pageNo - 1] else null
+                                            if (imageUri != null) {
+                                                AsyncImage(
+                                                    model = imageUri,
+                                                    contentDescription = "Page $pageNo",
+                                                    contentScale = ContentScale.Crop,
+                                                    modifier = Modifier
+                                                        .weight(0.4f)
+                                                        .height(140.dp)
+                                                        .clip(RoundedCornerShape(8.dp))
+                                                )
+                                                Spacer(modifier = Modifier.width(12.dp))
+                                            }
+                                            
+                                            // Edit Field (Right half)
+                                            OutlinedTextField(
+                                                value = docType,
+                                                onValueChange = { newType ->
+                                                    val newMap = editedMapping.toMutableMap()
+                                                    newMap[pageNo] = newType
+                                                    editedMapping = newMap
+                                                },
+                                                label = { Text("Page $pageNo") },
+                                                modifier = Modifier.weight(if (imageUri != null) 0.6f else 1f),
+                                                singleLine = true
+                                            )
+                                        }
+                                    }
+                                }
+                                
+                                Spacer(modifier = Modifier.height(16.dp))
+                                
+                                Button(
+                                    onClick = {
+                                        viewModel.confirmAndProcessDocuments(editedMapping)
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text("Confirm & Proceed")
+                                }
                             }
                         }
                     }
