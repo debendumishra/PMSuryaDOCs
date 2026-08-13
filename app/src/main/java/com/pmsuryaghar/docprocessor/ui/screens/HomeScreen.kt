@@ -1,5 +1,9 @@
 package com.pmsuryaghar.docprocessor.ui.screens
 
+import androidx.compose.foundation.horizontalScroll
+
+import kotlinx.coroutines.launch
+
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Intent
@@ -57,6 +61,12 @@ fun HomeScreen(
     val scrollState = rememberScrollState()
     val detectedConsumerNo by viewModel.detectedConsumerNo.collectAsState()
     var showAboutDialog by remember { mutableStateOf(false) }
+    
+    // State for Document Generator Dialog
+    var showDocumentDialog by remember { mutableStateOf(false) }
+    var selectedTemplateName by remember { mutableStateOf("") }
+    var selectedTemplateFields by remember { mutableStateOf(emptyList<String>()) }
+    var isGeneratingPdf by remember { mutableStateOf(false) }
 
     // Periodically update source folder file count when HomeScreen opens
     LaunchedEffect(Unit) {
@@ -608,6 +618,51 @@ fun HomeScreen(
                 }
             }
 
+            // Document Generators Section
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Document Generators",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(androidx.compose.foundation.rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    val availablePdfTemplates = remember { com.pmsuryaghar.docprocessor.data.util.PdfFormManager.getAvailableTemplates(context) }
+                    
+                    val openGenerator = { templateName: String ->
+                        val fields = com.pmsuryaghar.docprocessor.data.util.PdfFormManager.extractPlaceholders(context, templateName)
+                        selectedTemplateName = templateName
+                        selectedTemplateFields = fields
+                        showDocumentDialog = true
+                    }
+
+                    availablePdfTemplates.forEach { templateName ->
+                        Button(
+                            onClick = { openGenerator(templateName) },
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text(templateName.removeSuffix(".pdf").replace("_", " "), fontSize = 11.sp, textAlign = TextAlign.Center)
+                        }
+                    }
+                    if (availablePdfTemplates.isEmpty()) {
+                        Text("No PDF templates found in assets.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+
             // Dual Action Control Section: Start Processing & Reset Side-by-Side (Requirement 1 & 2)
             Row(
                 modifier = Modifier
@@ -860,6 +915,55 @@ fun HomeScreen(
             }
         }
     }
+
+    if (showDocumentDialog) {
+        DocumentFormDialog(
+            documentName = selectedTemplateName,
+            fields = selectedTemplateFields,
+            onDismiss = { showDocumentDialog = false },
+            onSubmit = { values ->
+                showDocumentDialog = false
+                isGeneratingPdf = true
+                kotlinx.coroutines.MainScope().launch {
+                    try {
+                        val outputFileName = "${selectedTemplateName.removeSuffix(".pdf")}_${System.currentTimeMillis()}.pdf"
+                        val outputFile = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            com.pmsuryaghar.docprocessor.data.util.PdfFormManager.fillPdfForm(
+                                context = context,
+                                templateName = selectedTemplateName,
+                                values = values,
+                                outputFileName = outputFileName
+                            )
+                        }
+                        
+                        // Copy to destination folder
+                        val destinationUriStr = appSettings.defaultOutputFolderUri
+                        if (destinationUriStr.isNotBlank()) {
+                            val outputUri = Uri.parse(destinationUriStr)
+                            val documentFile = androidx.documentfile.provider.DocumentFile.fromTreeUri(context, outputUri)
+                            if (documentFile != null && documentFile.canWrite()) {
+                                val newFile = documentFile.createFile("application/pdf", outputFile.name)
+                                if (newFile != null) {
+                                    context.contentResolver.openOutputStream(newFile.uri)?.use { outStream ->
+                                        outputFile.inputStream().use { inStream ->
+                                            inStream.copyTo(outStream)
+                                        }
+                                    }
+                                    Toast.makeText(context, "PDF saved to destination folder", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        } else {
+                            Toast.makeText(context, "PDF generated in Cache: ${outputFile.name}", Toast.LENGTH_SHORT).show()
+                        }
+                    } catch (e: Exception) {
+                        Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_LONG).show()
+                    } finally {
+                        isGeneratingPdf = false
+                    }
+                }
+            }
+        )
+    }
 }
 
 @Composable
@@ -935,3 +1039,7 @@ private fun RealHistoryItemRow(
         }
     }
 }
+
+
+
+
